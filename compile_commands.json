@@ -1,0 +1,47 @@
+[
+{
+  "directory": "C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\CLANG_~1.EXE -DFMT_SHARED -DGLFW_DLL -DCMAKE_INTDIR=\\\"Debug\\\" -isystem C:/VulkanSDK/1.3.261.1/Include -isystem C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc/vcpkg_installed/x64-windows/include -g -Xclang -gcodeview -O0 -D_DEBUG -D_DLL -D_MT -Xclang --dependent-lib=msvcrtd -std=gnu++20 -o CMakeFiles\\fairyforest.dir\\Debug\\src\\main.cpp.obj -c C:\\Developement\\rtr23-fairyforest\\src\\main.cpp",
+  "file": "C:\\Developement\\rtr23-fairyforest\\src\\main.cpp"
+},
+{
+  "directory": "C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\CLANG_~1.EXE -DFMT_SHARED -DGLFW_DLL -DCMAKE_INTDIR=\\\"Debug\\\" -isystem C:/VulkanSDK/1.3.261.1/Include -isystem C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc/vcpkg_installed/x64-windows/include -g -Xclang -gcodeview -O0 -D_DEBUG -D_DLL -D_MT -Xclang --dependent-lib=msvcrtd -std=gnu++20 -o CMakeFiles\\fairyforest.dir\\Debug\\src\\application.cpp.obj -c C:\\Developement\\rtr23-fairyforest\\src\\application.cpp",
+  "file": "C:\\Developement\\rtr23-fairyforest\\src\\application.cpp"
+},
+{
+  "directory": "C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\CLANG_~1.EXE -DFMT_SHARED -DGLFW_DLL -DCMAKE_INTDIR=\\\"Debug\\\" -isystem C:/VulkanSDK/1.3.261.1/Include -isystem C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc/vcpkg_installed/x64-windows/include -g -Xclang -gcodeview -O0 -D_DEBUG -D_DLL -D_MT -Xclang --dependent-lib=msvcrtd -std=gnu++20 -o CMakeFiles\\fairyforest.dir\\Debug\\src\\window.cpp.obj -c C:\\Developement\\rtr23-fairyforest\\src\\window.cpp",
+  "file": "C:\\Developement\\rtr23-fairyforest\\src\\window.cpp"
+},
+{
+  "directory": "C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\CLANG_~1.EXE -DFMT_SHARED -DGLFW_DLL -DCMAKE_INTDIR=\\\"Release\\\" -isystem C:/VulkanSDK/1.3.261.1/Include -isystem C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc/vcpkg_installed/x64-windows/include -O3 -DNDEBUG -D_DLL -D_MT -Xclang --dependent-lib=msvcrt -std=gnu++20 -o CMakeFiles\\fairyforest.dir\\Release\\src\\main.cpp.obj -c C:\\Developement\\rtr23-fairyforest\\src\\main.cpp",
+  "file": "C:\\Developement\\rtr23-fairyforest\\src\\main.cpp"
+},
+{
+  "directory": "C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\CLANG_~1.EXE -DFMT_SHARED -DGLFW_DLL -DCMAKE_INTDIR=\\\"Release\\\" -isystem C:/VulkanSDK/1.3.261.1/Include -isystem C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc/vcpkg_installed/x64-windows/include -O3 -DNDEBUG -D_DLL -D_MT -Xclang --dependent-lib=msvcrt -std=gnu++20 -o CMakeFiles\\fairyforest.dir\\Release\\src\\application.cpp.obj -c C:\\Developement\\rtr23-fairyforest\\src\\application.cpp",
+  "file": "C:\\Developement\\rtr23-fairyforest\\src\\application.cpp"
+},
+{
+  "directory": "C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\CLANG_~1.EXE -DFMT_SHARED -DGLFW_DLL -DCMAKE_INTDIR=\\\"Release\\\" -isystem C:/VulkanSDK/1.3.261.1/Include -isystem C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc/vcpkg_installed/x64-windows/include -O3 -DNDEBUG -D_DLL -D_MT -Xclang --dependent-lib=msvcrt -std=gnu++20 -o CMakeFiles\\fairyforest.dir\\Release\\src\\window.cpp.obj -c C:\\Developement\\rtr23-fairyforest\\src\\window.cpp",
+  "file": "C:\\Developement\\rtr23-fairyforest\\src\\window.cpp"
+},
+{
+  "directory": "C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\CLANG_~1.EXE -DFMT_SHARED -DGLFW_DLL -DCMAKE_INTDIR=\\\"RelWithDebInfo\\\" -isystem C:/VulkanSDK/1.3.261.1/Include -isystem C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc/vcpkg_installed/x64-windows/include -O2 -g -DNDEBUG -Xclang -gcodeview -D_DLL -D_MT -Xclang --dependent-lib=msvcrt -std=gnu++20 -o CMakeFiles\\fairyforest.dir\\RelWithDebInfo\\src\\main.cpp.obj -c C:\\Developement\\rtr23-fairyforest\\src\\main.cpp",
+  "file": "C:\\Developement\\rtr23-fairyforest\\src\\main.cpp"
+},
+{
+  "directory": "C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\CLANG_~1.EXE -DFMT_SHARED -DGLFW_DLL -DCMAKE_INTDIR=\\\"RelWithDebInfo\\\" -isystem C:/VulkanSDK/1.3.261.1/Include -isystem C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc/vcpkg_installed/x64-windows/include -O2 -g -DNDEBUG -Xclang -gcodeview -D_DLL -D_MT -Xclang --dependent-lib=msvcrt -std=gnu++20 -o CMakeFiles\\fairyforest.dir\\RelWithDebInfo\\src\\application.cpp.obj -c C:\\Developement\\rtr23-fairyforest\\src\\application.cpp",
+  "file": "C:\\Developement\\rtr23-fairyforest\\src\\application.cpp"
+},
+{
+  "directory": "C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc",
+  "command": "C:\\PROGRA~1\\LLVM\\bin\\CLANG_~1.EXE -DFMT_SHARED -DGLFW_DLL -DCMAKE_INTDIR=\\\"RelWithDebInfo\\\" -isystem C:/VulkanSDK/1.3.261.1/Include -isystem C:/Developement/rtr23-fairyforest/bin/clang-x86_64-windows-msvc/vcpkg_installed/x64-windows/include -O2 -g -DNDEBUG -Xclang -gcodeview -D_DLL -D_MT -Xclang --dependent-lib=msvcrt -std=gnu++20 -o CMakeFiles\\fairyforest.dir\\RelWithDebInfo\\src\\window.cpp.obj -c C:\\Developement\\rtr23-fairyforest\\src\\window.cpp",
+  "file": "C:\\Developement\\rtr23-fairyforest\\src\\window.cpp"
+}
+]
