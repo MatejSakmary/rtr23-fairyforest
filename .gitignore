@@ -458,5 +458,6 @@ FodyWeavers.xsd
 _out
 preprocessed_*
 vcpkg/
+compile_commands.json
 
 .idea
