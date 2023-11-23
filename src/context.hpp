@@ -4,6 +4,7 @@
 struct Context
 {
     ff::Instance instance = {};
+    ff::Device device = {};
 
     Context();
     ~Context();

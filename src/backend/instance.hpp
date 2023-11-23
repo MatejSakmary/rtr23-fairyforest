@@ -12,7 +12,7 @@ namespace ff
             Instance();
             ~Instance();
 
-            auto create_device(CreateDeviceInfo const & info) -> Device;
+            auto create_device() -> Device;
         private:
             VkInstance vk_instance;
     };

@@ -7,6 +7,7 @@
 #include <string>
 #include <memory>
 #include <vector>
+#include <optional>
 
 #include <fmt/core.h>
 #include <fmt/format.h>

@@ -1,7 +1,8 @@
 #include "context.hpp"
 
 Context::Context() :
-    instance(ff::Instance())
+    instance{},
+    device{instance.create_device()}
 {
 
 }

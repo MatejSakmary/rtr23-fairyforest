@@ -12,6 +12,7 @@ add_executable(${PROJECT_NAME}
     "src/context.cpp"
     "src/backend/device.cpp"
     "src/backend/instance.cpp"
+    "src/backend/features.cpp"
 )
 
 find_package(fmt CONFIG REQUIRED)
