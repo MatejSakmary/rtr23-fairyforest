@@ -9,6 +9,9 @@ add_executable(${PROJECT_NAME}
     "src/main.cpp"
     "src/application.cpp"
     "src/window.cpp"
+    "src/context.cpp"
+    "src/backend/device.cpp"
+    "src/backend/instance.cpp"
 )
 
 find_package(fmt CONFIG REQUIRED)
@@ -25,3 +28,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     target_link_libraries(${PROJECT_NAME} PRIVATE Dwmapi)
 endif()
+
+# Debug mode defines
+target_compile_definitions(${PROJECT_NAME} PRIVATE "$<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:BACKEND_LOGGING>")

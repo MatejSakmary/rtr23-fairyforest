@@ -2,7 +2,8 @@
 
 #include "fairy_forest.hpp"
 #include "window.hpp"
-using namespace fairyforest::types;
+#include "context.hpp"
+using namespace ff::types;
 
 struct Application
 {
@@ -14,6 +15,7 @@ public:
 private:
     void update();
 
-    std::unique_ptr<Window> _window = {};
     bool keep_running = {};
+    std::unique_ptr<Window> window = {};
+    std::unique_ptr<Context> context = {};
 };

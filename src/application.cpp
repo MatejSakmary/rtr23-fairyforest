@@ -1,18 +1,18 @@
 #include "application.hpp"
-#include <fmt/core.h>
-#include <fmt/format.h>
 
-Application::Application() : keep_running(true)
+Application::Application() : 
+    keep_running(true),
+    window{std::make_unique<Window>(1920, 1080, "Fairy Forest")},
+    context{std::make_unique<Context>()}
 {
-    _window = std::make_unique<Window>(1920, 1080, "Fairy Forest");
 }
 
 auto Application::run() -> i32
 {
     while (keep_running)
     {
-        _window->update(16.6);
-        keep_running &= !static_cast<bool>(glfwWindowShouldClose(_window->glfw_handle));
+        window->update(16.6);
+        keep_running &= !static_cast<bool>(glfwWindowShouldClose(window->glfw_handle));
     }
     return 0;
 }

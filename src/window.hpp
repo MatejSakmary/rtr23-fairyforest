@@ -2,7 +2,7 @@
 
 
 #include "fairy_forest.hpp"
-using namespace fairyforest::types;
+using namespace ff::types;
 
 #include <GLFW/glfw3.h>
 

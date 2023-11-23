@@ -6,6 +6,10 @@
 #include <array>
 #include <string>
 #include <memory>
+#include <vector>
+
+#include <fmt/core.h>
+#include <fmt/format.h>
 
 #define GLM_DEPTH_ZERO_TO_ONEW
 #include <glm/glm.hpp>
@@ -13,7 +17,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 
-namespace fairyforest
+namespace ff
 {
     inline namespace types
     {
@@ -90,3 +94,16 @@ namespace fairyforest
         using f64mat4x4 = glm::dmat4x4;
     }
 }
+
+#ifdef _DEBUG
+#define DBG_ASSERT_TRUE_M(X, M)                                     \
+    [&] {                                                           \
+        if (!(x))                                                   \
+        {                                                           \
+            fmt::println("ASSERTION FAILURE: {}", M);               \
+            throw std::runtime_error("DEBUG ASSERTION FAILURE");    \
+        }                                                           \
+    }()
+#else
+#define DBG_ASSERT_TRUE_M(X, M)
+#endif
