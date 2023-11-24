@@ -13,6 +13,7 @@ add_executable(${PROJECT_NAME}
     "src/backend/device.cpp"
     "src/backend/instance.cpp"
     "src/backend/features.cpp"
+    "src/backend/swapchain.cpp"
 )
 
 find_package(fmt CONFIG REQUIRED)

@@ -4,6 +4,7 @@
 #include <dwmapi.h>
 #endif // defined(_WIN32)
 
+#define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
 
 void close_callback(GLFWwindow *window)
@@ -247,4 +248,9 @@ u32 Window::get_height() const
     i32 w, h;
     glfwGetWindowSize(this->glfw_handle, &w, &h);
     return h;
+}
+
+auto Window::get_handle() -> void*
+{
+    return glfwGetWin32Window(glfw_handle);
 }

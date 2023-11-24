@@ -3,7 +3,7 @@
 Application::Application() : 
     keep_running(true),
     window{std::make_unique<Window>(1920, 1080, "Fairy Forest")},
-    context{std::make_unique<Context>()}
+    context{std::make_unique<Context>(window->get_handle())}
 {
 }
 

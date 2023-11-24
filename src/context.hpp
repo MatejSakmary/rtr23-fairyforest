@@ -3,9 +3,10 @@
 
 struct Context
 {
-    ff::Instance instance = {};
-    ff::Device device = {};
+    std::shared_ptr<ff::Instance> instance = {};
+    std::shared_ptr<ff::Device> device = {};
+    std::shared_ptr<ff::Swapchain> swapchain = {};
 
-    Context();
+    Context(void * window_handle);
     ~Context();
 };

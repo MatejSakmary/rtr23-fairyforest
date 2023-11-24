@@ -62,6 +62,7 @@ struct Window
     void set_name(std::string name);
     auto get_name() -> std::string const &;
 
+    auto get_handle() -> void*;
     i32vec2 size = {};
     std::unique_ptr<WindowState> window_state = {};
     u32 glfw_window_id = {};
