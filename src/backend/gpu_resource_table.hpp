@@ -24,6 +24,7 @@ namespace ff
         private:
             friend struct Device;
             friend struct GpuResourceTable;
+            friend struct CommandBuffer;
             VkImage image;
             VkImageView image_view;
     };

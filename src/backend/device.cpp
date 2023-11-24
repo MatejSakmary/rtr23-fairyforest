@@ -73,11 +73,12 @@ namespace ff
 
         vkGetDeviceQueue(vulkan_device, main_queue_family_index, 0, &main_queue);
 
+        main_cpu_timeline_value = 0;
         VkSemaphoreTypeCreateInfo timeline_create_info{
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
             .pNext = nullptr,
             .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
-            .initialValue = 0,
+            .initialValue = main_cpu_timeline_value,
         };
 
         VkSemaphoreCreateInfo const vk_semaphore_create_info{
@@ -240,9 +241,91 @@ namespace ff
         resource_table->images.destroy_slot(id);
     }
 
+    void Device::submit(SubmitInfo const & info)
+    {
+        main_cpu_timeline_value += 1;
+        std::vector<VkSemaphore> submit_semaphore_waits = {};
+        std::vector<VkPipelineStageFlags> submit_semaphore_wait_stages = {};
+        std::vector<u64> submit_semaphore_wait_values = {};
+        submit_semaphore_waits.reserve(info.wait_binary_semaphores.size() + info.wait_timeline_semaphores.size());
+        for(u32 wait_binary_sema_idx = 0 ; wait_binary_sema_idx < info.wait_binary_semaphores.size(); wait_binary_sema_idx++)
+        {
+            submit_semaphore_waits.push_back(info.wait_binary_semaphores[wait_binary_sema_idx]);
+            submit_semaphore_wait_stages.push_back(VkPipelineStageFlagBits::VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+            submit_semaphore_wait_values.push_back(0); // Ignored for binary semaphores
+        }
+        for(u32 wait_timeline_sema_idx = 0 ; wait_timeline_sema_idx < info.wait_timeline_semaphores.size(); wait_timeline_sema_idx++)
+        {
+            submit_semaphore_waits.push_back(info.wait_timeline_semaphores[wait_timeline_sema_idx].semaphore);
+            submit_semaphore_wait_stages.push_back(VkPipelineStageFlagBits::VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+            submit_semaphore_wait_values.push_back(info.wait_timeline_semaphores[wait_timeline_sema_idx].value);
+        }
+
+        std::vector<VkSemaphore> submit_semaphore_signals = {};
+        std::vector<u64> submit_semaphore_signal_values = {};
+        submit_semaphore_signals.reserve(info.signal_binary_semaphores.size() + info.signal_timeline_semaphores.size() + 1);
+        submit_semaphore_signals.push_back(main_gpu_semaphore);
+        submit_semaphore_signal_values.push_back(main_cpu_timeline_value);
+        for(u32 signal_binary_sema_idx = 0 ; signal_binary_sema_idx < info.signal_binary_semaphores.size(); signal_binary_sema_idx++)
+        {
+            submit_semaphore_signals.push_back(info.signal_binary_semaphores[signal_binary_sema_idx]);
+            submit_semaphore_signal_values.push_back(0); // Ignored for binary semaphores
+        }
+        for(u32 signal_timeline_sema_idx = 0 ; signal_timeline_sema_idx < info.signal_timeline_semaphores.size(); signal_timeline_sema_idx++)
+        {
+            submit_semaphore_signals.push_back(info.signal_timeline_semaphores[signal_timeline_sema_idx].semaphore);
+            submit_semaphore_signal_values.push_back(info.signal_timeline_semaphores[signal_timeline_sema_idx].value);
+        }
+
+        VkTimelineSemaphoreSubmitInfo timeline_submit_info = {
+            .sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
+            .pNext = nullptr,
+            .waitSemaphoreValueCount = static_cast<u32>(submit_semaphore_wait_values.size()),
+            .pWaitSemaphoreValues = submit_semaphore_wait_values.data(),
+            .signalSemaphoreValueCount = static_cast<u32>(submit_semaphore_signal_values.size()),
+            .pSignalSemaphoreValues = submit_semaphore_signal_values.data()
+        };
+
+        VkSubmitInfo const submit_info = {
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .pNext = reinterpret_cast<void*>(&timeline_submit_info),
+            .waitSemaphoreCount = static_cast<u32>(submit_semaphore_waits.size()),
+            .pWaitSemaphores = submit_semaphore_waits.data(),
+            .pWaitDstStageMask = submit_semaphore_wait_stages.data(),
+            .commandBufferCount = static_cast<u32>(info.command_buffers.size()),
+            .pCommandBuffers = info.command_buffers.data(),
+            .signalSemaphoreCount = static_cast<u32>(submit_semaphore_signals.size()),
+            .pSignalSemaphores = submit_semaphore_signals.data(),
+        };
+
+        CHECK_VK_RESULT(vkQueueSubmit(main_queue, 1, &submit_info, VK_NULL_HANDLE));
+    }
+
+    void Device::cleanup_resources()
+    {
+        u64 gpu_timeline_value = {};
+        CHECK_VK_RESULT(vkGetSemaphoreCounterValue(vulkan_device, main_gpu_semaphore, &gpu_timeline_value));
+        while(!command_buffer_zombies.empty())
+        {
+            if(command_buffer_zombies.front().cpu_timeline_value > gpu_timeline_value)
+            {
+                break;
+            }
+            vkFreeCommandBuffers(vulkan_device, command_buffer_zombies.front().pool, 1, &command_buffer_zombies.front().buffer);
+            vkDestroyCommandPool(vulkan_device, command_buffer_zombies.front().pool, nullptr);
+            // BACKEND_LOG(fmt::format("[INFO][CommandBuffer::~CommandBuffer()] Vulkan command pool and buffer destroyed CPU destruction time {} GPU curr time {} CPU real time {}",
+            //     command_buffer_zombies.back().cpu_timeline_value,
+            //     gpu_timeline_value,
+            //     main_cpu_timeline_value
+            // ));
+            command_buffer_zombies.pop();
+        }
+    }
+
     Device::~Device()
     {
         resource_table.reset();
+        cleanup_resources();
         vkDestroySemaphore(vulkan_device, main_gpu_semaphore, nullptr);
         vkDestroyDevice(vulkan_device, nullptr);
         BACKEND_LOG("[INFO][Device::~Device()] Device destroyed")

@@ -15,6 +15,8 @@ add_executable(${PROJECT_NAME}
     "src/backend/features.cpp"
     "src/backend/swapchain.cpp"
     "src/backend/gpu_resource_table.cpp"
+    "src/backend/command_buffer.cpp"
+    "src/rendering/renderer.cpp"
 )
 
 find_package(fmt CONFIG REQUIRED)

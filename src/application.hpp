@@ -3,6 +3,7 @@
 #include "fairy_forest.hpp"
 #include "window.hpp"
 #include "context.hpp"
+#include "rendering/renderer.hpp"
 using namespace ff::types;
 
 struct Application
@@ -17,5 +18,6 @@ private:
 
     bool keep_running = {};
     std::unique_ptr<Window> window = {};
-    std::unique_ptr<Context> context = {};
+    std::shared_ptr<Context> context = {};
+    std::unique_ptr<ff::Renderer> renderer = {};
 };

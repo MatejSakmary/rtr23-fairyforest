@@ -1,5 +1,8 @@
 #pragma once
 
+#include <span>
+#include <queue>
+
 #include "core.hpp"
 #include "instance.hpp"
 #include "gpu_resource_table.hpp"
@@ -7,6 +10,26 @@
 
 namespace ff
 {
+    struct TimelineSemaphoreInfo
+    {
+        VkSemaphore semaphore;
+        u64 value;
+    };
+    struct SubmitInfo
+    {
+        std::span<VkCommandBuffer> command_buffers = {};
+        std::span<VkSemaphore> wait_binary_semaphores = {};
+        std::span<TimelineSemaphoreInfo> wait_timeline_semaphores = {};
+        std::span<VkSemaphore> signal_binary_semaphores = {};
+        std::span<TimelineSemaphoreInfo> signal_timeline_semaphores = {};
+    };
+
+    struct CommandBufferZombie
+    {
+        VkCommandPool pool = {};
+        VkCommandBuffer buffer = {};
+        u64 cpu_timeline_value = {};
+    };
     struct Device
     {
         public:
@@ -16,10 +39,13 @@ namespace ff
 
             Device() = default;
             Device(std::shared_ptr<Instance> instance);
+            void submit(SubmitInfo const & info);
+            void cleanup_resources();
             ~Device();
 
         private:
             friend struct Swapchain;
+            friend struct CommandBuffer;
 
             constexpr static u32 MAX_BUFFERS = 1000u;
             constexpr static u32 MAX_IMAGES = 1000u;
@@ -36,7 +62,10 @@ namespace ff
             PFN_vkCmdBeginDebugUtilsLabelEXT vkCmdBeginDebugUtilsLabelEXT = {};
             PFN_vkCmdEndDebugUtilsLabelEXT vkCmdEndDebugUtilsLabelEXT = {};
 
+            std::queue<CommandBufferZombie> command_buffer_zombies = {};
+
             i32 main_queue_family_index = {};
+            u64 main_cpu_timeline_value = {};
 
             auto create_swapchain_image(VkImage swapchain_image, CreateImageInfo const & info) -> ImageId;
             void destroy_swapchain_image(ImageId id);

@@ -84,7 +84,7 @@ namespace ff
             .height = surface_capabilities.currentExtent.height
         };
 
-        VkImageUsageFlags const usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        VkImageUsageFlags const usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
         VkSwapchainCreateInfoKHR const swapchain_create_info = {
             .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -135,10 +135,124 @@ namespace ff
             .pObjectName = "FF Swapchain",
         };
         CHECK_VK_RESULT(device->vkSetDebugUtilsObjectNameEXT(device->vulkan_device, &swapchain_name_info));
+
+        swapchain_cpu_timeline = 0;
+        VkSemaphoreTypeCreateInfo timeline_semaphore_type_create_info = {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
+            .pNext = nullptr,
+            .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
+            .initialValue = swapchain_cpu_timeline
+        };
+
+        VkSemaphoreCreateInfo const timeline_semaphore_create_info = {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+            .pNext = &timeline_semaphore_type_create_info,
+            .flags = {}
+        };
+        CHECK_VK_RESULT(vkCreateSemaphore(device->vulkan_device, &timeline_semaphore_create_info, nullptr, &swapchain_timeline_semaphore));
+        BACKEND_LOG("[INFO][Swapchain::Swapchain()] Swapchain timeline semaphore creation successful");
+
+        for(u32 swapchain_semaphore_idx = 0; swapchain_semaphore_idx < FRAMES_IN_FLIGHT; swapchain_semaphore_idx++)
+        {
+            auto & current_acquire_semaphore = swapchain_acquire_semaphores.at(swapchain_semaphore_idx);
+            auto & current_present_semaphore = swapchain_present_semaphores.at(swapchain_semaphore_idx);
+            VkSemaphoreCreateInfo const semaphore_create_info = {
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = {}
+            };
+            CHECK_VK_RESULT(vkCreateSemaphore(device->vulkan_device, &semaphore_create_info, nullptr, &current_acquire_semaphore));
+            CHECK_VK_RESULT(vkCreateSemaphore(device->vulkan_device, &semaphore_create_info, nullptr, &current_present_semaphore));
+            auto const acquire_name = fmt::format("Swapchain acquire sema {}", swapchain_semaphore_idx);
+            VkDebugUtilsObjectNameInfoEXT const acquire_name_info{
+                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+                .pNext = nullptr,
+                .objectType = VK_OBJECT_TYPE_SEMAPHORE,
+                .objectHandle = reinterpret_cast<u64>(current_acquire_semaphore),
+                .pObjectName = acquire_name.c_str(),
+            };
+            auto const present_name = fmt::format("Swapchain present sema {}", swapchain_semaphore_idx);
+            VkDebugUtilsObjectNameInfoEXT const present_name_info{
+                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+                .pNext = nullptr,
+                .objectType = VK_OBJECT_TYPE_SEMAPHORE,
+                .objectHandle = reinterpret_cast<u64>(current_present_semaphore),
+                .pObjectName = present_name.c_str(),
+            };
+            CHECK_VK_RESULT(device->vkSetDebugUtilsObjectNameEXT(device->vulkan_device, &acquire_name_info));
+            CHECK_VK_RESULT(device->vkSetDebugUtilsObjectNameEXT(device->vulkan_device, &present_name_info));
+        }
+        BACKEND_LOG("[INFO][Swapchain::Swapchain()] Swapchain acquire and present semaphores creation successful");
+    }
+
+    auto Swapchain::acquire_next_image() -> ImageId
+    {
+        const u64 waited_value = static_cast<u64>(std::max(static_cast<i64>(swapchain_cpu_timeline) - static_cast<i64>(FRAMES_IN_FLIGHT), 0ll));
+        VkSemaphoreWaitInfo const semaphore_wait_info = {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
+            .pNext = nullptr,
+            .flags = {},
+            .semaphoreCount = 1,
+            .pSemaphores = &swapchain_timeline_semaphore,
+            .pValues = &waited_value
+        };
+        CHECK_VK_RESULT(vkWaitSemaphores(device->vulkan_device, &semaphore_wait_info, std::numeric_limits<u32>::max()));
+        current_semaphore_index = (swapchain_cpu_timeline) % FRAMES_IN_FLIGHT;
+        VkSemaphore const & acquire_semaphore = swapchain_acquire_semaphores.at(current_semaphore_index);
+        CHECK_VK_RESULT(vkAcquireNextImageKHR(device->vulkan_device, swapchain, std::numeric_limits<u64>::max(), acquire_semaphore, nullptr, &current_acquired_image_index));
+        swapchain_cpu_timeline += 1;
+        return images.at(current_acquired_image_index);
+    }
+
+    auto Swapchain::get_current_acquire_semaphore() -> VkSemaphore
+    {
+        return swapchain_acquire_semaphores.at(current_semaphore_index);
+    }
+
+    auto Swapchain::get_current_present_semaphore() -> VkSemaphore
+    {
+        return swapchain_present_semaphores.at(current_semaphore_index);
+    }
+
+    auto Swapchain::get_timeline_semaphore() -> VkSemaphore
+    {
+        return swapchain_timeline_semaphore;
+    }
+
+    auto Swapchain::get_timeline_cpu_value() -> u64
+    {
+        return swapchain_cpu_timeline;
+    }
+
+    void Swapchain::present(PresentInfo const & info)
+    {
+        VkPresentInfoKHR const present_info = {
+            .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+            .pNext = nullptr,
+            .waitSemaphoreCount = static_cast<u32>(info.wait_semaphores.size()),
+            .pWaitSemaphores = info.wait_semaphores.data(),
+            .swapchainCount = 1,
+            .pSwapchains = &swapchain,
+            .pImageIndices = &current_acquired_image_index,
+            .pResults = {}
+        };
+
+        CHECK_VK_RESULT(vkQueuePresentKHR(device->main_queue, &present_info));
     }
 
     Swapchain::~Swapchain()
     {
+        vkDestroySemaphore(device->vulkan_device, swapchain_timeline_semaphore, nullptr);
+        BACKEND_LOG("[INFO][Swapchain::~Swapchain] Swapchain timeline semaphore destroyed")
+        for(auto const & swapchain_acquire_semaphore : swapchain_acquire_semaphores)
+        {
+            vkDestroySemaphore(device->vulkan_device, swapchain_acquire_semaphore, nullptr);
+        }
+        for(auto const & swapchain_present_semaphore : swapchain_present_semaphores)
+        {
+            vkDestroySemaphore(device->vulkan_device, swapchain_present_semaphore, nullptr);
+        }
+        BACKEND_LOG("[INFO][Swapchain::~Swapchain] Swapchain acquire and present semaphores destroyed")
         for(ImageId const & id : images)
         {
             device->destroy_swapchain_image(id);
