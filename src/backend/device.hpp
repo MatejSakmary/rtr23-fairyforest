@@ -41,6 +41,7 @@ namespace ff
             Device(std::shared_ptr<Instance> instance);
             void submit(SubmitInfo const & info);
             void cleanup_resources();
+            void wait_idle();
             ~Device();
 
         private:

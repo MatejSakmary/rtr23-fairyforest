@@ -11,6 +11,7 @@ namespace ff
             Renderer(std::shared_ptr<Context> context);
 
             void draw_frame();
+            void resize();
         private:
             std::shared_ptr<Context> context = {};
     };

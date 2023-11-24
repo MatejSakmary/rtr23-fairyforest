@@ -10,6 +10,7 @@ struct WindowState
 {
     bool b_close_requested = {};
     bool b_focused = true;
+    bool resized = false;
     std::array<bool, 5> mouse_button_down_old = {};
     std::array<bool, 5> mouse_button_down = {};
     std::array<bool, 512> key_down = {};

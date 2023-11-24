@@ -322,6 +322,12 @@ namespace ff
         }
     }
 
+    void Device::wait_idle()
+    {
+        CHECK_VK_RESULT(vkQueueWaitIdle(main_queue));
+        CHECK_VK_RESULT(vkDeviceWaitIdle(vulkan_device));
+    }
+
     Device::~Device()
     {
         resource_table.reset();

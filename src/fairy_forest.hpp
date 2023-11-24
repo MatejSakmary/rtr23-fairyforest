@@ -97,6 +97,7 @@ namespace ff
 }
 
 #ifdef _DEBUG
+#define APP_LOG(M) fmt::println("[APP]{}", M);
 #define DBG_ASSERT_TRUE_M(X, M)                                     \
     [&] {                                                           \
         if (!(x))                                                   \
@@ -107,4 +108,5 @@ namespace ff
     }()
 #else
 #define DBG_ASSERT_TRUE_M(X, M)
+#define APP_LOG(M)
 #endif

@@ -47,6 +47,11 @@ void cursor_move_callback(GLFWwindow *window, double xpos, double ypos)
     self->cursor_change_x = static_cast<i32>(std::floor(xpos)) - self->old_cursor_pos_x;
     self->cursor_change_y = static_cast<i32>(std::floor(ypos)) - self->old_cursor_pos_y;
 }
+void window_resize_callback(GLFWwindow *window, i32 x, i32 y)
+{ 
+    WindowState *self = reinterpret_cast<WindowState *>(glfwGetWindowUserPointer(window));
+    self->resized = true;
+}
 
 void window_focus_callback(GLFWwindow *window, int focused)
 {
@@ -69,6 +74,7 @@ Window::Window(i32 width, i32 height, std::string_view name)
     glfwSetWindowUserPointer(this->glfw_handle, window_state.get());
 
     glfwSetWindowCloseCallback(this->glfw_handle, close_callback);
+    glfwSetFramebufferSizeCallback(this->glfw_handle, window_resize_callback);
     glfwSetKeyCallback(this->glfw_handle, key_callback);
     glfwSetMouseButtonCallback(this->glfw_handle, mouse_button_callback);
     glfwSetCursorPosCallback(this->glfw_handle, cursor_move_callback);
@@ -207,6 +213,7 @@ bool Window::is_cursor_captured() const
 
 bool Window::update(f32 deltaTime)
 {
+    this->window_state->resized = false;
     this->window_state->key_down_old = this->window_state->key_down;
     this->window_state->mouse_button_down_old = this->window_state->mouse_button_down;
     this->window_state->old_cursor_pos_x = this->get_cursor_x();

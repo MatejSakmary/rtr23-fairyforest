@@ -7,6 +7,11 @@ namespace ff
     {
     }
 
+    void Renderer::resize()
+    {
+        context->swapchain->resize();
+    }
+
     void Renderer::draw_frame()
     {
         auto swapchain_image = context->swapchain->acquire_next_image();
@@ -40,6 +45,7 @@ namespace ff
             .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
             .image_id = swapchain_image
         });
+
         command_buffer.end();
         auto finished_command_buffer = command_buffer.get_recorded_command_buffer();
         auto acquire_semaphore = context->swapchain->get_current_acquire_semaphore();

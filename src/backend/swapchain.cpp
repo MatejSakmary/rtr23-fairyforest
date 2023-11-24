@@ -14,6 +14,76 @@ namespace ff
         BACKEND_LOG("[INFO][Swaphcain::create_surface()] Surface creation successful")
     }
 
+    void Swapchain::resize()
+    {
+        device->wait_idle();
+        for(ImageId const & id : images)
+        {
+            device->destroy_swapchain_image(id);
+        }
+        VkSurfaceCapabilitiesKHR surface_capabilities;
+        CHECK_VK_RESULT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR( device->vulkan_physical_device, surface, &surface_capabilities));
+        surface_extent = {
+            .width = surface_capabilities.currentExtent.width,
+            .height = surface_capabilities.currentExtent.height
+        };
+
+        VkImageUsageFlags const usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+
+        auto old_swapchain = swapchain;
+        VkSwapchainCreateInfoKHR const swapchain_create_info = {
+            .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+            .pNext = nullptr,
+            .flags = 0,
+            .surface = surface,
+            .minImageCount = MIN_IMAGE_COUNT,
+            .imageFormat = surface_format.format,
+            .imageColorSpace = surface_format.colorSpace,
+            .imageExtent = surface_extent,
+            .imageArrayLayers = 1,
+            .imageUsage = usage,
+            .imageSharingMode = VkSharingMode::VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount = 1,
+            .pQueueFamilyIndices = reinterpret_cast<u32*>(&device->main_queue_family_index),
+            .preTransform = VkSurfaceTransformFlagBitsKHR::VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+            .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+            .presentMode = present_mode,
+            .clipped = VK_TRUE,
+            .oldSwapchain = old_swapchain,
+        };
+
+        CHECK_VK_RESULT(vkCreateSwapchainKHR(device->vulkan_device, &swapchain_create_info, nullptr, &swapchain));
+        BACKEND_LOG("[INFO][Swapchain::Swapchain()] Swapchain creation successful");
+
+        vkDestroySwapchainKHR(device->vulkan_device, old_swapchain, nullptr);
+
+        u32 vulkan_swapchain_image_count = 0;
+        std::vector<VkImage> vulkan_swapchain_images = {};
+        CHECK_VK_RESULT(vkGetSwapchainImagesKHR(device->vulkan_device, swapchain, &vulkan_swapchain_image_count, nullptr));
+        vulkan_swapchain_images.resize(vulkan_swapchain_image_count);
+        CHECK_VK_RESULT(vkGetSwapchainImagesKHR(device->vulkan_device, swapchain, &vulkan_swapchain_image_count, vulkan_swapchain_images.data()));
+
+        images.resize(vulkan_swapchain_image_count);
+        for(u32 swapchain_image_index = 0; swapchain_image_index < vulkan_swapchain_image_count; swapchain_image_index++)
+        {
+            CreateImageInfo image_info = {
+                .format = surface_format.format,
+                .extent = {surface_extent.width, surface_extent.height, 1},
+                .usage = usage,
+                .name = fmt::format("swapchain {}", swapchain_image_index)
+            };
+            images.at(swapchain_image_index) = device->create_swapchain_image(vulkan_swapchain_images.at(swapchain_image_index), image_info);
+        }
+        VkDebugUtilsObjectNameInfoEXT const swapchain_name_info{
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .pNext = nullptr,
+            .objectType = VK_OBJECT_TYPE_SWAPCHAIN_KHR,
+            .objectHandle = reinterpret_cast<u64>(swapchain),
+            .pObjectName = "FF Swapchain",
+        };
+        CHECK_VK_RESULT(device->vkSetDebugUtilsObjectNameEXT(device->vulkan_device, &swapchain_name_info));
+    }
+
     Swapchain::Swapchain(CreateSwapchainInfo const & info) :
         device{info.device},
         instance{info.instance},

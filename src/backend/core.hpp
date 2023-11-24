@@ -23,7 +23,7 @@
     }
 
 #if defined(BACKEND_LOGGING)
-#define BACKEND_LOG(M) fmt::println("{}", M);
+#define BACKEND_LOG(M) fmt::println("[BACKEND]{}", M);
 #else
 #define BACKEND_LOG(M)
 #endif

@@ -13,6 +13,11 @@ auto Application::run() -> i32
     while (keep_running)
     {
         window->update(16.6);
+        if(window->window_state->resized) 
+        {
+            APP_LOG("[INFO][Application::run()] Window resize detected");
+            renderer->resize(); 
+        }
         renderer->draw_frame();
         keep_running &= !static_cast<bool>(glfwWindowShouldClose(window->glfw_handle));
     }

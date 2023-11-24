@@ -29,6 +29,7 @@ namespace ff
 
             Swapchain() = default;
             Swapchain(CreateSwapchainInfo const & info);
+            void resize();
             auto acquire_next_image() -> ImageId;
             auto get_current_acquire_semaphore() -> VkSemaphore;
             auto get_current_present_semaphore() -> VkSemaphore;
@@ -43,7 +44,8 @@ namespace ff
             std::shared_ptr<Device> device = {};
             std::shared_ptr<Instance> instance = {};
             std::vector<ImageId> images = {};
-            VkSwapchainKHR swapchain = {};
+
+            VkSwapchainKHR swapchain = VK_NULL_HANDLE;
 
             void * window_handle = {};
             VkSurfaceKHR surface = {};
