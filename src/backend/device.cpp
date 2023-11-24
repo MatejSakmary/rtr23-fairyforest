@@ -125,12 +125,19 @@ namespace ff
         };
         CHECK_VK_RESULT(vkSetDebugUtilsObjectNameEXT(vulkan_device, &main_gpu_semaphore_name_info));
         BACKEND_LOG("[INFO][Device::Device()] Device initalization and setup successful")
+        resource_table = std::make_unique<GpuResourceTable>(CreateGpuResourceTableInfo{
+            .max_buffer_slots = MAX_BUFFERS,
+            .max_image_slots = MAX_IMAGES,
+            .max_sampler_slots = MAX_SAMPLERS,
+            .vkSetDebugUtilsObjectNameEXT = vkSetDebugUtilsObjectNameEXT,
+            .vulkan_device = vulkan_device
+        });
     }
 
     auto Device::create_swapchain_image(VkImage swapchain_image, CreateImageInfo const & info) -> ImageId
     {
-        ImageId const id = images.create_slot();
-        auto image = images.slot(id);
+        ImageId const id = resource_table->images.create_slot();
+        auto image = resource_table->images.slot(id);
         image->image = swapchain_image;
         image->image_info = info;
 
@@ -176,7 +183,7 @@ namespace ff
         };
         CHECK_VK_RESULT(vkSetDebugUtilsObjectNameEXT(vulkan_device, &swapchain_image_view_name_info));
 
-        /// TODO: Write descriptor set here
+        resource_table->write_descriptor_set_image(id);
         return id;
     }
 
@@ -227,14 +234,15 @@ namespace ff
 
     void Device::destroy_swapchain_image(ImageId id)
     {
-        auto image = images.slot(id);
+        auto image = resource_table->images.slot(id);
         vkDestroyImageView(vulkan_device, image->image_view, nullptr);
         BACKEND_LOG(fmt::format("[INFO][Device::destroy_swapchain_image()] {} image view destroyed ", image->image_info.name));
-        images.destroy_slot(id);
+        resource_table->images.destroy_slot(id);
     }
 
     Device::~Device()
     {
+        resource_table.reset();
         vkDestroySemaphore(vulkan_device, main_gpu_semaphore, nullptr);
         vkDestroyDevice(vulkan_device, nullptr);
         BACKEND_LOG("[INFO][Device::~Device()] Device destroyed")
