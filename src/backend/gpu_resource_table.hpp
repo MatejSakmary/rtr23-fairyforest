@@ -89,6 +89,7 @@ namespace ff
     static inline constexpr u32 MAX_PUSH_CONSTANT_BYTE_SIZE = {MAX_PUSH_CONSTANT_WORD_SIZE * 4};
     static inline constexpr u32 PIPELINE_LAYOUT_COUNT = {MAX_PUSH_CONSTANT_WORD_SIZE + 1};
 
+    /// NOTE: Must match the ones in backend.glsl
     static inline constexpr u32 BUFFER_BINDING = 0;
     static inline constexpr u32 STORAGE_IMAGE_BINDING = 1;
     static inline constexpr u32 SAMPLED_IMAGE_BINDING = 2;

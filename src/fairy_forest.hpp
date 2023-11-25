@@ -93,6 +93,8 @@ namespace ff
         using f64mat4x2 = glm::dmat4x2;
         using f64mat4x3 = glm::dmat4x3;
         using f64mat4x4 = glm::dmat4x4;
+
+        using BufferDeviceAddress = u64;
     }
 }
 

@@ -224,6 +224,32 @@ namespace ff
         return resource_table->buffers.slot(buffer_id)->buffer_info;
     }
 
+    auto Device::get_buffer_host_pointer(BufferId buffer_id) -> void*
+    {
+        if (!resource_table->buffers.is_id_valid(buffer_id))
+        {
+            BACKEND_LOG(fmt::format("[ERROR][Device::get_buffer_host_pointer()] Invalid buffer id"));
+            throw std::runtime_error("[ERROR][Device::get_buffer_host_pointer()] Invalid buffer id");
+        }
+        void * host_address = resource_table->buffers.slot(buffer_id)->host_address;
+        if(host_address == nullptr)
+        {
+            BACKEND_LOG(fmt::format("[ERROR][Device::get_buffer_host_pointer()] Attempting to retrieve host address of non host readable buffer"));
+            throw std::runtime_error("[ERROR][Device::get_buffer_host_pointer()] Attempting to retrieve host address of non host readable buffer");
+        }
+        return host_address;
+    }
+
+    auto Device::get_buffer_device_address(BufferId buffer_id) -> VkDeviceAddress
+    {
+        if (!resource_table->buffers.is_id_valid(buffer_id))
+        {
+            BACKEND_LOG(fmt::format("[ERROR][Device::get_buffer_device_address()] Invalid buffer id"));
+            throw std::runtime_error("[ERROR][Device::get_buffer_device_address()] Invalid buffer id");
+        }
+        return resource_table->buffers.slot(buffer_id)->device_address;
+    }
+
     auto Device::create_buffer(CreateBufferInfo const & info) -> BufferId
     {
         if (info.size <= 0)

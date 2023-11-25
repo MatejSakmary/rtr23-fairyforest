@@ -58,6 +58,8 @@ namespace ff
 
             auto info_image(ImageId image_id) -> CreateImageInfo &;
             auto info_buffer(BufferId buffer_id) -> CreateBufferInfo &;
+            auto get_buffer_host_pointer(BufferId buffer_id) -> void*;
+            auto get_buffer_device_address(BufferId buffer_id) -> VkDeviceAddress;
 
             auto create_buffer(CreateBufferInfo const & info) -> BufferId;
             auto create_image(CreateImageInfo const & info) -> ImageId;

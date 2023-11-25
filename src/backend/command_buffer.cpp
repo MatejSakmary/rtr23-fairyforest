@@ -60,6 +60,37 @@ namespace  ff
         was_recorded = true;
     }
 
+    void CommandBuffer::cmd_memory_barrier(MemoryBarrierInfo const & info)
+    {
+        VkMemoryBarrier2 barrier = {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+            .pNext = nullptr,
+            .srcStageMask = info.src_stages,
+            .srcAccessMask = info.src_access,
+            .dstStageMask = info.dst_stages,
+            .dstAccessMask = info.dst_access
+        };
+
+        VkDependencyInfo const dependency_info = {
+            .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+            .pNext = nullptr,
+            .dependencyFlags = {},
+            .memoryBarrierCount = 1,
+            .pMemoryBarriers = &barrier,
+            .bufferMemoryBarrierCount = 0,
+            .pBufferMemoryBarriers = nullptr,
+            .imageMemoryBarrierCount = 0,
+            .pImageMemoryBarriers = nullptr
+        };
+        vkCmdPipelineBarrier2(buffer, &dependency_info);
+    }
+
+    void CommandBuffer::cmd_set_push_constant_internal(void const * data, u32 size)
+    {
+        u32 const layout_index = (size + sizeof(u32) - 1) / sizeof(u32);
+        vkCmdPushConstants(buffer, device->resource_table->pipeline_layouts.at(layout_index), VK_SHADER_STAGE_ALL, 0, size, data);
+    }
+
     void CommandBuffer::cmd_image_memory_transition_barrier(ImageMemoryBarrierTransitionInfo const & info)
     {
         VkPipelineStageFlags2 src_stage = {};
@@ -113,6 +144,19 @@ namespace  ff
             .pImageMemoryBarriers = &barrier
         };
         vkCmdPipelineBarrier2(buffer, &dependency_info);
+    }
+
+    void CommandBuffer::cmd_copy_buffer_to_buffer(CopyBufferToBufferInfo const & info)
+    {
+        auto const copy_info = VkBufferCopy{
+            .srcOffset = info.src_offset,
+            .dstOffset = info.dst_offset,
+            .size = info.size
+        };
+
+        VkBuffer src_buffer = device->resource_table->buffers.slot(info.src_buffer)->buffer;
+        VkBuffer dst_buffer = device->resource_table->buffers.slot(info.dst_buffer)->buffer;
+        vkCmdCopyBuffer(buffer, src_buffer, dst_buffer, 1, &copy_info);
     }
 
     void CommandBuffer::cmd_image_clear(ImageClearInfo const & info)

@@ -9,6 +9,15 @@
 
 namespace ff
 {
+    struct CopyBufferToBufferInfo
+    {
+        BufferId src_buffer = {};
+        u32 src_offset = {};
+        BufferId dst_buffer = {};
+        u32 dst_offset = {};
+        u32 size = {};
+    };
+
     struct ImageMemoryBarrierTransitionInfo
     {
         VkPipelineStageFlags2 src_stages = {};
@@ -55,6 +64,14 @@ namespace ff
         VkRect2D render_area = {};
     };
 
+    struct MemoryBarrierInfo
+    {
+        VkPipelineStageFlags2 src_stages = {};
+        VkAccessFlags2 src_access = {};
+        VkPipelineStageFlagBits2 dst_stages = {};
+        VkAccessFlags2 dst_access = {};
+    };
+
     struct DrawInfo
     {
         u32 vertex_count = 0;
@@ -62,7 +79,6 @@ namespace ff
         u32 first_vertex = 0;
         u32 first_instance = 0; 
     };
-
     struct CommandBuffer
     {
         public:
@@ -72,7 +88,11 @@ namespace ff
 
             void begin();
             void end();
+            void cmd_copy_buffer_to_buffer(CopyBufferToBufferInfo const & info);
             void cmd_image_memory_transition_barrier(ImageMemoryBarrierTransitionInfo const & info);
+            void cmd_memory_barrier(MemoryBarrierInfo const & info);
+            template<typename T>
+            void cmd_set_push_constant(T const & push_constant) { cmd_set_push_constant_internal(&push_constant, sizeof(T)); };
             void cmd_image_clear(ImageClearInfo const & info);
             void cmd_set_raster_pipeline(Pipeline const & pipeline);
             void cmd_draw(DrawInfo const & info);
@@ -87,5 +107,7 @@ namespace ff
             std::shared_ptr<Device> device = {};
             VkCommandPool pool = {};
             VkCommandBuffer buffer = {};
+
+            void cmd_set_push_constant_internal(void const * data, u32 size);
     };
 }
