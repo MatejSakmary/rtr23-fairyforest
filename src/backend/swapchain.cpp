@@ -112,7 +112,7 @@ namespace ff
 
         auto present_mode_comparator = [&](VkPresentModeKHR const & a, VkPresentModeKHR const & b)
         {
-            return present_mode_selector(a) < present_mode_selector(a); 
+            return present_mode_selector(a) < present_mode_selector(b); 
         };
         auto const best_present_mode_it = std::max_element(present_modes.begin(), present_modes.end(), present_mode_comparator);
         present_mode = *best_present_mode_it;
@@ -146,7 +146,6 @@ namespace ff
         auto const best_format_it = std::max_element(formats.begin(), formats.end(), format_comparator);
         surface_format = *best_format_it;
         if(format_selector(surface_format.format) == 0) { BACKEND_LOG(fmt::format("[Swapchain::Swapchain()][WARN] Found only format which was not explicitly wanted")); }
-        /// TODO: (msakmary) Add support for resizing
         VkSurfaceCapabilitiesKHR surface_capabilities;
         CHECK_VK_RESULT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR( device->vulkan_physical_device, surface, &surface_capabilities));
         surface_extent = {

@@ -33,9 +33,42 @@ namespace ff
         context->swapchain->resize();
     }
 
+    #include <chrono>
+    #include <atomic>
+
+    namespace shino
+    {
+        template <typename Clock = std::chrono::high_resolution_clock>
+        class stopwatch
+        {
+            const typename Clock::time_point start_point;
+        public:
+            stopwatch() : 
+                start_point(Clock::now())
+            {}
+
+            template <typename Rep = typename Clock::duration::rep, typename Units = typename Clock::duration>
+            Rep elapsed_time() const
+            {
+                std::atomic_thread_fence(std::memory_order_relaxed);
+                auto counted_time = std::chrono::duration_cast<Units>(Clock::now() - start_point).count();
+                std::atomic_thread_fence(std::memory_order_relaxed);
+                return static_cast<Rep>(counted_time);
+            }
+        };
+
+        using precise_stopwatch = stopwatch<>;
+        using system_stopwatch = stopwatch<std::chrono::system_clock>;
+        using monotonic_stopwatch = stopwatch<std::chrono::steady_clock>;
+    };
+
     void Renderer::draw_frame()
     {
+        static i32 frame = 0;
+        shino::precise_stopwatch stopwatch = {};
+        frame += 1;
         auto swapchain_image = context->swapchain->acquire_next_image();
+
         auto command_buffer = CommandBuffer(context->device);
         command_buffer.begin();
         command_buffer.cmd_image_memory_transition_barrier({
@@ -49,12 +82,14 @@ namespace ff
             .image_id = swapchain_image
         });
 
+
         command_buffer.cmd_image_clear({
             .layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             .clear_value = VkClearColorValue{{0.05, 0.05, 0.05, 1.0}},
             .image_id = swapchain_image,
             .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT
         });
+
 
         command_buffer.cmd_image_memory_transition_barrier({
             .src_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
@@ -67,7 +102,9 @@ namespace ff
             .image_id = swapchain_image
         });
 
+
         auto const & swapchain_extent = context->device->info_image(swapchain_image).extent;
+
         command_buffer.cmd_begin_renderpass({
             .color_attachments = {{
                 .image_id = swapchain_image,
@@ -113,6 +150,7 @@ namespace ff
 
         context->swapchain->present({ .wait_semaphores = {&present_semaphore, 1} });
         context->device->cleanup_resources();
+        fmt::println("CPU frame time {}us", stopwatch.elapsed_time<unsigned int, std::chrono::microseconds>());
     }
 
     Renderer::~Renderer()
