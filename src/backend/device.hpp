@@ -30,10 +30,19 @@ namespace ff
         VkCommandBuffer buffer = {};
         u64 cpu_timeline_value = {};
     };
-
     struct PipelineZombie
     {
         VkPipeline pipeline = {};
+        u64 cpu_timeline_value = {};
+    };
+    struct ImageZombie
+    {
+        ImageId image_id = {};
+        u64 cpu_timeline_value = {};
+    };
+    struct BufferZombie
+    {
+        BufferId buffer_id = {};
         u64 cpu_timeline_value = {};
     };
     struct Device
@@ -46,7 +55,14 @@ namespace ff
             Device() = default;
             Device(std::shared_ptr<Instance> instance);
 
+
             auto info_image(ImageId image_id) -> CreateImageInfo &;
+            auto info_buffer(BufferId buffer_id) -> CreateBufferInfo &;
+
+            auto create_buffer(CreateBufferInfo const & info) -> BufferId;
+            auto create_image(CreateImageInfo const & info) -> ImageId;
+            void destroy_buffer(BufferId id);
+            void destroy_image(ImageId id);
 
             void submit(SubmitInfo const & info);
             void cleanup_resources();
@@ -67,12 +83,15 @@ namespace ff
 
             VkPhysicalDevice vulkan_physical_device = {};
             VkDevice vulkan_device = {};
+            VmaAllocator allocator = {};
 
             // Debug utils function pointers
             PFN_vkSetDebugUtilsObjectNameEXT vkSetDebugUtilsObjectNameEXT = {};
             PFN_vkCmdBeginDebugUtilsLabelEXT vkCmdBeginDebugUtilsLabelEXT = {};
             PFN_vkCmdEndDebugUtilsLabelEXT vkCmdEndDebugUtilsLabelEXT = {};
 
+            std::queue<ImageZombie> image_zombies = {};
+            std::queue<BufferZombie> buffer_zombies = {};
             std::queue<CommandBufferZombie> command_buffer_zombies = {};
             std::queue<PipelineZombie> pipeline_zombies = {};
 

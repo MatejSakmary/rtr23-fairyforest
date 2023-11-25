@@ -249,7 +249,27 @@ namespace ff
 
     void GpuResourceTable::write_descriptor_set_buffer(BufferId id)
     {
-        /// TODO: (msakmary) Implement
+        auto const * buffer = buffers.slot(id);
+        VkDescriptorBufferInfo const vk_descriptor_image_info{
+            .buffer = buffer->buffer,
+            .offset = 0,
+            .range = buffer->buffer_info.size,
+        };
+
+        VkWriteDescriptorSet const vk_write_descriptor_set{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .pNext = nullptr,
+            .dstSet = descriptor_set,
+            .dstBinding = BUFFER_BINDING,
+            .dstArrayElement = id.index,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .pImageInfo = nullptr,
+            .pBufferInfo = &vk_descriptor_image_info,
+            .pTexelBufferView = nullptr,
+        };
+
+        vkUpdateDescriptorSets(vulkan_device, 1, &vk_write_descriptor_set, 0, nullptr);
     }
 
     void GpuResourceTable::write_descriptor_set_sampler(SamplerId id)

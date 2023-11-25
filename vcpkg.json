@@ -2,6 +2,7 @@
   "name": "fairyforrest",
   "version": "0.0.1",
   "dependencies": [
+    "vulkan-memory-allocator",
     "glfw3",
     "glm",
     "fmt"

@@ -13,6 +13,7 @@
 #define ENGINE_NAME "ff"
 
 #include <vulkan/vulkan.h>
+#include <vk_mem_alloc.h>
 #include <stdexcept>
 
 #define CHECK_VK_RESULT(x)                                                                                                  \

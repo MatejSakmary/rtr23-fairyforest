@@ -14,6 +14,18 @@ namespace ff
             .name = "triangle pipeline"
         }})
     {
+        test_image = context->device->create_image({
+            .extent = {1, 1, 1},
+            .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .alloc_flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+            .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+            .name = "test image"
+        });
+        test_buffer = context->device->create_buffer({
+            .size = 1,
+            .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+            .name = "test buffer"
+        });
     }
 
     void Renderer::resize()
@@ -101,5 +113,11 @@ namespace ff
 
         context->swapchain->present({ .wait_semaphores = {&present_semaphore, 1} });
         context->device->cleanup_resources();
+    }
+
+    Renderer::~Renderer()
+    {
+        context->device->destroy_image(test_image);
+        context->device->destroy_buffer(test_buffer);
     }
 }
