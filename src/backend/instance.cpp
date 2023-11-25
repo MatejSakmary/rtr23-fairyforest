@@ -1,7 +1,7 @@
 #include "instance.hpp"
 #include <algorithm>
 
-namespace ff 
+namespace ff
 {
     Instance::Instance()
     {
@@ -16,17 +16,18 @@ namespace ff
         instance_extensions.resize(instance_extension_count);
         CHECK_VK_RESULT(vkEnumerateInstanceExtensionProperties(nullptr, &instance_extension_count, instance_extensions.data()));
 
-        for(auto const * required_extension : required_extensions)
+        for (auto const * required_extension : required_extensions)
         {
-            auto ext_predicate = [=](VkExtensionProperties const & property) { return std::strcmp(property.extensionName, required_extension) == 0; };
+            auto ext_predicate = [=](VkExtensionProperties const & property)
+            { return std::strcmp(property.extensionName, required_extension) == 0; };
             auto const req_instance_extension_it = std::find_if(instance_extensions.begin(), instance_extensions.end(), ext_predicate);
-            if(req_instance_extension_it == instance_extensions.end())
+            if (req_instance_extension_it == instance_extensions.end())
             {
                 throw std::runtime_error(fmt::format("[ERROR][Instance::Instance] did not find support for extension {}", required_extension));
             }
         }
 
-        const VkApplicationInfo application_info = {
+        VkApplicationInfo const application_info = {
             .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
             .pNext = nullptr,
             .pApplicationName = APP_NAME,
@@ -55,4 +56,4 @@ namespace ff
         vkDestroyInstance(vulkan_instance, nullptr);
         BACKEND_LOG("[INFO][Instance::~Instance()] Instance destroyed");
     }
-}
+} // namespace ff

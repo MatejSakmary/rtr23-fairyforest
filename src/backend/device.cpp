@@ -80,14 +80,14 @@ namespace ff
         vkGetDeviceQueue(vulkan_device, main_queue_family_index, 0, &main_queue);
 
         main_cpu_timeline_value = 0;
-        VkSemaphoreTypeCreateInfo timeline_create_info{
+        VkSemaphoreTypeCreateInfo timeline_create_info = {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
             .pNext = nullptr,
             .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
             .initialValue = main_cpu_timeline_value,
         };
 
-        VkSemaphoreCreateInfo const vk_semaphore_create_info{
+        VkSemaphoreCreateInfo const vk_semaphore_create_info = {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
             .pNext = reinterpret_cast<void *>(&timeline_create_info),
             .flags = {},
@@ -114,7 +114,7 @@ namespace ff
             throw std::runtime_error(fmt::format("[ERROR][Device::Device()] MAX SAMPLERS - {} exceeds device properties limit - {}", MAX_SAMPLERS, device_max_ds_samplers));
         }
 
-        VkDebugUtilsObjectNameInfoEXT const device_name_info{
+        VkDebugUtilsObjectNameInfoEXT const device_name_info = {
             .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
             .pNext = nullptr,
             .objectType = VK_OBJECT_TYPE_DEVICE,
@@ -123,7 +123,7 @@ namespace ff
         };
         CHECK_VK_RESULT(vkSetDebugUtilsObjectNameEXT(vulkan_device, &device_name_info));
 
-        VkDebugUtilsObjectNameInfoEXT const main_queue_name_info{
+        VkDebugUtilsObjectNameInfoEXT const main_queue_name_info = {
             .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
             .pNext = nullptr,
             .objectType = VK_OBJECT_TYPE_QUEUE,
@@ -132,7 +132,7 @@ namespace ff
         };
         CHECK_VK_RESULT(vkSetDebugUtilsObjectNameEXT(vulkan_device, &main_queue_name_info));
 
-        VkDebugUtilsObjectNameInfoEXT const main_gpu_semaphore_name_info{
+        VkDebugUtilsObjectNameInfoEXT const main_gpu_semaphore_name_info = {
             .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
             .pNext = nullptr,
             .objectType = VK_OBJECT_TYPE_SEMAPHORE,
@@ -186,7 +186,7 @@ namespace ff
 #endif
         };
 
-        VmaAllocatorCreateInfo const vma_allocator_create_info{
+        VmaAllocatorCreateInfo const vma_allocator_create_info = {
             .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
             .physicalDevice = vulkan_physical_device,
             .device = vulkan_device,
@@ -224,7 +224,7 @@ namespace ff
         return resource_table->buffers.slot(buffer_id)->buffer_info;
     }
 
-    auto Device::get_buffer_host_pointer(BufferId buffer_id) -> void*
+    auto Device::get_buffer_host_pointer(BufferId buffer_id) -> void *
     {
         if (!resource_table->buffers.is_id_valid(buffer_id))
         {
@@ -232,7 +232,7 @@ namespace ff
             throw std::runtime_error("[ERROR][Device::get_buffer_host_pointer()] Invalid buffer id");
         }
         void * host_address = resource_table->buffers.slot(buffer_id)->host_address;
-        if(host_address == nullptr)
+        if (host_address == nullptr)
         {
             BACKEND_LOG(fmt::format("[ERROR][Device::get_buffer_host_pointer()] Attempting to retrieve host address of non host readable buffer"));
             throw std::runtime_error("[ERROR][Device::get_buffer_host_pointer()] Attempting to retrieve host address of non host readable buffer");
@@ -360,7 +360,8 @@ namespace ff
             .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
             .queueFamilyIndexCount = 1,
             .pQueueFamilyIndices = reinterpret_cast<u32 *>(&main_queue_family_index),
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        };
 
         VmaAllocationCreateInfo const vma_allocation_create_info = {
             .flags = static_cast<VmaAllocationCreateFlags>(info.alloc_flags),
@@ -447,7 +448,8 @@ namespace ff
                 .levelCount = 1,
                 .baseArrayLayer = 0,
                 .layerCount = 1,
-            }};
+            },
+        };
         CHECK_VK_RESULT(vkCreateImageView(vulkan_device, &image_view_create_info, nullptr, &image->image_view));
         BACKEND_LOG(fmt::format("[INFO][Device::create_swapchain_image()] {} image view created successfuly", info.name))
 
@@ -496,10 +498,10 @@ namespace ff
             i32 score = 0;
             switch (properties.deviceType)
             {
-            case VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU: score += 1000; break;
-            case VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU: score += 100; break;
-            case VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: score += 10; break;
-            default: break;
+                case VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:   score += 1000; break;
+                case VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:    score += 100; break;
+                case VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: score += 10; break;
+                default:                                                           break;
             }
             return score;
         };
@@ -572,7 +574,8 @@ namespace ff
             .waitSemaphoreValueCount = static_cast<u32>(submit_semaphore_wait_values.size()),
             .pWaitSemaphoreValues = submit_semaphore_wait_values.data(),
             .signalSemaphoreValueCount = static_cast<u32>(submit_semaphore_signal_values.size()),
-            .pSignalSemaphoreValues = submit_semaphore_signal_values.data()};
+            .pSignalSemaphoreValues = submit_semaphore_signal_values.data(),
+        };
 
         VkSubmitInfo const submit_info = {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -583,34 +586,35 @@ namespace ff
             .commandBufferCount = static_cast<u32>(info.command_buffers.size()),
             .pCommandBuffers = info.command_buffers.data(),
             .signalSemaphoreCount = static_cast<u32>(submit_semaphore_signals.size()),
-            .pSignalSemaphores = submit_semaphore_signals.data()};
+            .pSignalSemaphores = submit_semaphore_signals.data(),
+        };
 
         CHECK_VK_RESULT(vkQueueSubmit(main_queue, 1, &submit_info, VK_NULL_HANDLE));
     }
 
     void Device::destroy_buffer(BufferId id)
     {
-        if(!resource_table->buffers.is_id_valid(id))
+        if (!resource_table->buffers.is_id_valid(id))
         {
             BACKEND_LOG(fmt::format("[ERROR][Device::destroy_buffer()] Attempting to destroy invalid buffer"));
             throw std::runtime_error("[ERROR][Device::destroy_buffer()] Attempting to destroy invalid buffer");
         }
         buffer_zombies.push({
             .buffer_id = id,
-            .cpu_timeline_value = main_cpu_timeline_value
+            .cpu_timeline_value = main_cpu_timeline_value,
         });
     }
 
     void Device::destroy_image(ImageId id)
     {
-        if(!resource_table->images.is_id_valid(id))
+        if (!resource_table->images.is_id_valid(id))
         {
             BACKEND_LOG(fmt::format("[ERROR][Device::destroy_image()] Attempting to destroy invalid image"));
             throw std::runtime_error("[ERROR][Device::destroy_image()] Attempting to destroy invalid image");
         }
         image_zombies.push({
             .image_id = id,
-            .cpu_timeline_value = main_cpu_timeline_value
+            .cpu_timeline_value = main_cpu_timeline_value,
         });
     }
 

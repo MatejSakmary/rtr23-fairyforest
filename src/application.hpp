@@ -8,12 +8,13 @@ using namespace ff::types;
 
 struct Application
 {
-public:
+  public:
     Application();
     ~Application();
 
     auto run() -> i32;
-private:
+
+  private:
     void update();
 
     bool keep_running = {};

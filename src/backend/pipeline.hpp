@@ -66,20 +66,20 @@ namespace ff
     /// TODO: I do raster pipeline ONLY for now add compute pipeline
     struct Pipeline
     {
-        public:
-            Pipeline() = default;
-            Pipeline(PipelineCreateInfo const & info);
-            Pipeline(Pipeline const & other) = delete;
-            Pipeline & operator=(Pipeline const & other) = delete; 
-            Pipeline(Pipeline && other) = delete;
-            Pipeline & operator=(Pipeline && other) = delete; 
-            ~Pipeline();
+      public:
+        Pipeline() = default;
+        Pipeline(PipelineCreateInfo const & info);
+        Pipeline(Pipeline const & other) = delete;
+        Pipeline & operator=(Pipeline const & other) = delete;
+        Pipeline(Pipeline && other) = delete;
+        Pipeline & operator=(Pipeline && other) = delete;
+        ~Pipeline();
 
-        private:
-            friend struct CommandBuffer;
+      private:
+        friend struct CommandBuffer;
 
-            std::shared_ptr<Device> device = {};
-            VkPipelineLayout layout = {};
-            VkPipeline pipeline = {};
+        std::shared_ptr<Device> device = {};
+        VkPipelineLayout layout = {};
+        VkPipeline pipeline = {};
     };
-}
+} // namespace ff

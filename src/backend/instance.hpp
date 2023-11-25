@@ -7,13 +7,13 @@ namespace ff
 {
     struct Instance
     {
-        public:
+      public:
+        Instance();
+        ~Instance();
 
-            Instance();
-            ~Instance();
-        private:
-            friend struct Device;
-            friend struct Swapchain;
-            VkInstance vulkan_instance = {};
+      private:
+        friend struct Device;
+        friend struct Swapchain;
+        VkInstance vulkan_instance = {};
     };
-}
+} // namespace ff

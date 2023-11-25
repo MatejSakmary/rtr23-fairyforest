@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include "fairy_forest.hpp"
 using namespace ff::types;
 
@@ -11,10 +10,12 @@ struct WindowState
     bool b_close_requested = {};
     bool b_focused = true;
     bool resized = false;
+
     std::array<bool, 5> mouse_button_down_old = {};
     std::array<bool, 5> mouse_button_down = {};
     std::array<bool, 512> key_down = {};
     std::array<bool, 512> key_down_old = {};
+
     i32 old_cursor_pos_x = {};
     i32 old_cursor_pos_y = {};
     i32 cursor_change_x = {};
@@ -63,13 +64,14 @@ struct Window
     void set_name(std::string name);
     auto get_name() -> std::string const &;
 
-    auto get_handle() -> void*;
-    i32vec2 size = {};
+    auto get_handle() -> void *;
     std::unique_ptr<WindowState> window_state = {};
+
+    i32vec2 size = {};
     u32 glfw_window_id = {};
     bool cursor_captured = {};
     std::string name = {};
-    GLFWwindow *glfw_handle = {};
+    GLFWwindow * glfw_handle = {};
     i32 cursor_pos_change_x = {};
     i32 cursor_pos_change_y = {};
 };

@@ -5,7 +5,7 @@ UseTab: Never
 TabWidth: 4
 IndentWidth: 4
 AccessModifierOffset: -2
-IndentCaseLabels: false
+IndentCaseLabels: true
 ColumnLimit: 0
 BreakBeforeBraces: Allman
 QualifierAlignment: Right
@@ -17,7 +17,13 @@ NamespaceIndentation: All
 CompactNamespaces: true
 
 AllowShortIfStatementsOnASingleLine: true
-AllowShortCaseLabelsOnASingleLine: true
 AllowShortBlocksOnASingleLine: false
 
 PointerAlignment: Middle
+
+AllowShortCaseLabelsOnASingleLine: true
+AlignConsecutiveShortCaseStatements:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: true
+  AlignCaseColons: false

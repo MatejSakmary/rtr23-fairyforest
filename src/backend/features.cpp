@@ -16,7 +16,7 @@ namespace ff
             .logicOp = VK_FALSE,
             .multiDrawIndirect = VK_TRUE, // Very useful for gpu driven rendering
             .drawIndirectFirstInstance = VK_FALSE,
-            .depthClamp = VK_TRUE,      // NOTE(msakmary) need self for bikeshed if breaks ping me
+            .depthClamp = VK_TRUE, // NOTE(msakmary) need self for bikeshed if breaks ping me
             .depthBiasClamp = VK_FALSE,
             .fillModeNonSolid = VK_TRUE,
             .depthBounds = VK_FALSE,
@@ -36,8 +36,8 @@ namespace ff
             .shaderImageGatherExtended = VK_FALSE,
             .shaderStorageImageExtendedFormats = VK_FALSE,
             .shaderStorageImageMultisample = VK_TRUE,            // Useful for software vrs.
-            .shaderStorageImageReadWithoutFormat = VK_TRUE,      // This allows daxa shaders to not specify image layout for image binding tables and read ops.
-            .shaderStorageImageWriteWithoutFormat = VK_TRUE,     // This allows daxa shaders to not specify image layout for image binding tables and write ops.
+            .shaderStorageImageReadWithoutFormat = VK_TRUE,      
+            .shaderStorageImageWriteWithoutFormat = VK_TRUE,     
             .shaderUniformBufferArrayDynamicIndexing = VK_FALSE, // This is superseded by descriptor indexing.
             .shaderSampledImageArrayDynamicIndexing = VK_FALSE,  // This is superseded by descriptor indexing.
             .shaderStorageBufferArrayDynamicIndexing = VK_FALSE, // This is superseded by descriptor indexing.
@@ -45,7 +45,7 @@ namespace ff
             .shaderClipDistance = VK_FALSE,
             .shaderCullDistance = VK_FALSE,
             .shaderFloat64 = VK_FALSE,
-            .shaderInt64 = VK_TRUE,                             // Used for buffer device address math.
+            .shaderInt64 = VK_TRUE, // Used for buffer device address math.
             .shaderInt16 = VK_FALSE,
             .shaderResourceResidency = VK_FALSE,
             .shaderResourceMinLod = VK_FALSE,
@@ -75,11 +75,11 @@ namespace ff
             .pNext = chain,
             .shaderInputAttachmentArrayDynamicIndexing = VK_FALSE,
             .shaderUniformTexelBufferArrayDynamicIndexing = VK_FALSE,
-            .shaderStorageTexelBufferArrayDynamicIndexing = VK_FALSE,       
-            .shaderUniformBufferArrayNonUniformIndexing = VK_FALSE,       
-            .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,         
-            .shaderStorageBufferArrayNonUniformIndexing = VK_TRUE,          
-            .shaderStorageImageArrayNonUniformIndexing = VK_TRUE,          
+            .shaderStorageTexelBufferArrayDynamicIndexing = VK_FALSE,
+            .shaderUniformBufferArrayNonUniformIndexing = VK_FALSE,
+            .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
+            .shaderStorageBufferArrayNonUniformIndexing = VK_TRUE,
+            .shaderStorageImageArrayNonUniformIndexing = VK_TRUE,
             .shaderInputAttachmentArrayNonUniformIndexing = VK_FALSE,
             .shaderUniformTexelBufferArrayNonUniformIndexing = VK_FALSE,
             .shaderStorageTexelBufferArrayNonUniformIndexing = VK_FALSE,
@@ -133,4 +133,4 @@ namespace ff
         this->data[size++] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
         this->data[size++] = {VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME};
     }
-}
+} // namespace ff

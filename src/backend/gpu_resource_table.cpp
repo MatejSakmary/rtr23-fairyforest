@@ -2,43 +2,43 @@
 
 namespace ff
 {
-    GpuResourceTable::GpuResourceTable(CreateGpuResourceTableInfo const & info) :
-        info{info},
-        vulkan_device{info.vulkan_device}
+    GpuResourceTable::GpuResourceTable(CreateGpuResourceTableInfo const & info)
+        : info{info},
+          vulkan_device{info.vulkan_device}
     {
         VkDescriptorPoolSize const buffer_descriptor_pool_size = {
             .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = info.max_buffer_slots
+            .descriptorCount = info.max_buffer_slots,
         };
         VkDescriptorPoolSize const storage_image_descriptor_pool_size = {
             .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            .descriptorCount = info.max_image_slots
+            .descriptorCount = info.max_image_slots,
         };
         VkDescriptorPoolSize const sampled_image_descriptor_pool_size = {
             .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            .descriptorCount = info.max_image_slots
+            .descriptorCount = info.max_image_slots,
         };
         VkDescriptorPoolSize const sampler_descriptor_pool_size = {
             .type = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .descriptorCount = info.max_sampler_slots
+            .descriptorCount = info.max_sampler_slots,
         };
 
         std::array<VkDescriptorPoolSize, 4> const pool_sizes = {
             buffer_descriptor_pool_size,
             storage_image_descriptor_pool_size,
             sampled_image_descriptor_pool_size,
-            sampler_descriptor_pool_size
+            sampler_descriptor_pool_size,
         };
 
         VkDescriptorPoolCreateInfo const descriptor_pool_create_info = {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
             .pNext = nullptr,
-            .flags = 
+            .flags =
                 VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT |
                 VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
             .maxSets = 1,
             .poolSizeCount = static_cast<u32>(pool_sizes.size()),
-            .pPoolSizes = pool_sizes.data(), 
+            .pPoolSizes = pool_sizes.data(),
         };
 
         CHECK_VK_RESULT(vkCreateDescriptorPool(vulkan_device, &descriptor_pool_create_info, nullptr, &descriptor_pool));
@@ -279,7 +279,7 @@ namespace ff
 
     GpuResourceTable::~GpuResourceTable()
     {
-        for(auto const & pipeline_layout : pipeline_layouts)
+        for (auto const & pipeline_layout : pipeline_layouts)
         {
             vkDestroyPipelineLayout(vulkan_device, pipeline_layout, nullptr);
         }
@@ -291,4 +291,4 @@ namespace ff
         vkDestroyDescriptorPool(vulkan_device, descriptor_pool, nullptr);
         BACKEND_LOG("[INFO][GpuResourceTable::~GpuResourceTable()] Bindless descriptor pool destroyed");
     }
-}
+} // namespace ff

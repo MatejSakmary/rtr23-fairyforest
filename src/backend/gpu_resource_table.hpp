@@ -5,7 +5,7 @@
 
 namespace ff
 {
-    static const inline VkBufferUsageFlags BUFFER_USE_FLAGS =
+    static inline VkBufferUsageFlags const BUFFER_USE_FLAGS =
         VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
         VK_BUFFER_USAGE_TRANSFER_DST_BIT |

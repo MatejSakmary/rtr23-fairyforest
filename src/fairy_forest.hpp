@@ -17,9 +17,33 @@
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-
+#include <chrono>
+#include <atomic>
 namespace ff
 {
+    template <typename Clock = std::chrono::high_resolution_clock>
+    struct Stopwatch
+    {
+      public:
+        Stopwatch() : start_point(Clock::now()) {}
+
+        template <typename Rep = typename Clock::duration::rep, typename Units = typename Clock::duration>
+        Rep elapsed_time() const
+        {
+            std::atomic_thread_fence(std::memory_order_relaxed);
+            auto counted_time = std::chrono::duration_cast<Units>(Clock::now() - start_point).count();
+            std::atomic_thread_fence(std::memory_order_relaxed);
+            return static_cast<Rep>(counted_time);
+        }
+
+      private:
+        typename Clock::time_point const start_point;
+    };
+
+    using PreciseStopwatch = Stopwatch<>;
+    using SystemStopwatch = Stopwatch<std::chrono::system_clock>;
+    using MonotonicStopwatch = Stopwatch<std::chrono::steady_clock>;
+
     inline namespace types
     {
         using u8 = std::uint8_t;
@@ -95,18 +119,18 @@ namespace ff
         using f64mat4x4 = glm::dmat4x4;
 
         using BufferDeviceAddress = u64;
-    }
-}
+    } // namespace types
+} // namespace ff
 
 #ifdef _DEBUG
 #define APP_LOG(M) fmt::println("[APP]{}", M);
-#define DBG_ASSERT_TRUE_M(X, M)                                     \
-    [&] {                                                           \
-        if (!(x))                                                   \
-        {                                                           \
-            fmt::println("ASSERTION FAILURE: {}", M);               \
-            throw std::runtime_error("DEBUG ASSERTION FAILURE");    \
-        }                                                           \
+#define DBG_ASSERT_TRUE_M(X, M)                                  \
+    [&] {                                                        \
+        if (!(x))                                                \
+        {                                                        \
+            fmt::println("ASSERTION FAILURE: {}", M);            \
+            throw std::runtime_error("DEBUG ASSERTION FAILURE"); \
+        }                                                        \
     }()
 #else
 #define DBG_ASSERT_TRUE_M(X, M)

@@ -1,16 +1,16 @@
 #include "command_buffer.hpp"
-namespace  ff 
+namespace ff
 {
-    CommandBuffer::CommandBuffer(std::shared_ptr<Device> device) :
-        device{device},
-        was_recorded{false},
-        in_renderpass{false}
+    CommandBuffer::CommandBuffer(std::shared_ptr<Device> device)
+        : device{device},
+          was_recorded{false},
+          in_renderpass{false}
     {
         VkCommandPoolCreateInfo const command_pool_create_info = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
             .pNext = nullptr,
             .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-            .queueFamilyIndex = static_cast<u32>(device->main_queue_family_index)
+            .queueFamilyIndex = static_cast<u32>(device->main_queue_family_index),
         };
 
         CHECK_VK_RESULT(vkCreateCommandPool(device->vulkan_device, &command_pool_create_info, nullptr, &pool));
@@ -27,12 +27,12 @@ namespace  ff
 
     void CommandBuffer::begin()
     {
-        if(recording == true) 
+        if (recording == true)
         {
             BACKEND_LOG("[ERROR][CommandBuffer::begin()] begin() called twice");
             throw std::runtime_error("[ERROR][CommandBuffer::begin()] begin() called twice");
         }
-        if(was_recorded == true)
+        if (was_recorded == true)
         {
             BACKEND_LOG("[ERROR][CommandBuffer::begin()] buffer was already recorded");
             throw std::runtime_error("[ERROR][CommandBuffer::begin()] buffer was already recorded");
@@ -50,7 +50,7 @@ namespace  ff
 
     void CommandBuffer::end()
     {
-        if(recording != true) 
+        if (recording != true)
         {
             BACKEND_LOG("[ERROR][CommandBuffer::end()] Did not call begin()");
             throw std::runtime_error("[ERROR][CommandBuffer::end()] Did not call begin()");
@@ -68,7 +68,7 @@ namespace  ff
             .srcStageMask = info.src_stages,
             .srcAccessMask = info.src_access,
             .dstStageMask = info.dst_stages,
-            .dstAccessMask = info.dst_access
+            .dstAccessMask = info.dst_access,
         };
 
         VkDependencyInfo const dependency_info = {
@@ -80,7 +80,7 @@ namespace  ff
             .bufferMemoryBarrierCount = 0,
             .pBufferMemoryBarriers = nullptr,
             .imageMemoryBarrierCount = 0,
-            .pImageMemoryBarriers = nullptr
+            .pImageMemoryBarriers = nullptr,
         };
         vkCmdPipelineBarrier2(buffer, &dependency_info);
     }
@@ -105,8 +105,8 @@ namespace  ff
         u32 layer_count = 1;
         ImageId image_id = {};
 
-        if(!device->resource_table->images.is_id_valid(info.image_id)) 
-        { 
+        if (!device->resource_table->images.is_id_valid(info.image_id))
+        {
             BACKEND_LOG("[ERROR][CommandBuffer::cmd_image_memory_transition_barrier()] Received invalid image ID");
             throw std::runtime_error("[ERROR][CommandBuffer::cmd_image_memory_transition_barrier()] Received invalid image ID");
         }
@@ -128,8 +128,7 @@ namespace  ff
                 .baseMipLevel = info.base_mip_level,
                 .levelCount = info.level_count,
                 .baseArrayLayer = info.base_array_layer,
-                .layerCount = info.layer_count
-            }
+                .layerCount = info.layer_count},
         };
 
         VkDependencyInfo const dependency_info = {
@@ -141,7 +140,7 @@ namespace  ff
             .bufferMemoryBarrierCount = 0,
             .pBufferMemoryBarriers = nullptr,
             .imageMemoryBarrierCount = 1,
-            .pImageMemoryBarriers = &barrier
+            .pImageMemoryBarriers = &barrier,
         };
         vkCmdPipelineBarrier2(buffer, &dependency_info);
     }
@@ -151,7 +150,7 @@ namespace  ff
         auto const copy_info = VkBufferCopy{
             .srcOffset = info.src_offset,
             .dstOffset = info.dst_offset,
-            .size = info.size
+            .size = info.size,
         };
 
         VkBuffer src_buffer = device->resource_table->buffers.slot(info.src_buffer)->buffer;
@@ -161,8 +160,8 @@ namespace  ff
 
     void CommandBuffer::cmd_image_clear(ImageClearInfo const & info)
     {
-        if(!device->resource_table->images.is_id_valid(info.image_id)) 
-        { 
+        if (!device->resource_table->images.is_id_valid(info.image_id))
+        {
             BACKEND_LOG("[ERROR][CommandBuffer::cmd_image_clear()] Received invalid image ID");
             throw std::runtime_error("[ERROR][CommandBuffer::cmd_image_clear()] Received invalid image ID");
         }
@@ -173,15 +172,15 @@ namespace  ff
             .baseMipLevel = info.base_mip_level,
             .levelCount = info.level_count,
             .baseArrayLayer = info.base_array_layer,
-            .layerCount = info.layer_count
+            .layerCount = info.layer_count,
         };
         vkCmdClearColorImage(buffer, image->image, info.layout, &info.clear_value, 1, &subresource_range);
     }
 
     auto CommandBuffer::get_recorded_command_buffer() -> VkCommandBuffer
     {
-        if(was_recorded == false)
-        { 
+        if (was_recorded == false)
+        {
             BACKEND_LOG("[ERROR][CommandBuffer::get_recorded_command_buffer()] Buffer was not yet recorded");
             throw std::runtime_error("[ERROR][CommandBuffer::get_recorded_command_buffer()] Buffer was not yet recorded");
         }
@@ -202,7 +201,7 @@ namespace  ff
 
     void CommandBuffer::cmd_begin_renderpass(BeginRenderpassInfo const & info)
     {
-        auto fill_rendering_attachment_info = [&](RenderingAttachmentInfo const & in) -> VkRenderingAttachmentInfo 
+        auto fill_rendering_attachment_info = [&](RenderingAttachmentInfo const & in) -> VkRenderingAttachmentInfo
         {
             return VkRenderingAttachmentInfo{
                 .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -222,7 +221,7 @@ namespace  ff
         color_attachments.reserve(info.color_attachments.size());
         for (usize i = 0; i < info.color_attachments.size(); ++i)
         {
-            if(!device->resource_table->images.is_id_valid(info.color_attachments.at(i).image_id))
+            if (!device->resource_table->images.is_id_valid(info.color_attachments.at(i).image_id))
             {
                 BACKEND_LOG(fmt::format("[ERROR][CommandBuffer::cmd_begin_renderpass()] Invalid image id in color attachment index {}", i));
                 throw std::runtime_error("[ERROR][CommandBuffer::cmd_begin_renderpass()] Invalid color image id");
@@ -232,7 +231,7 @@ namespace  ff
         VkRenderingAttachmentInfo depth_attachment_info = {};
         if (info.depth_attachment.has_value())
         {
-            if(!device->resource_table->images.is_id_valid(info.depth_attachment.value().image_id))
+            if (!device->resource_table->images.is_id_valid(info.depth_attachment.value().image_id))
             {
                 BACKEND_LOG(fmt::format("[ERROR][CommandBuffer::cmd_begin_renderpass()] Invalid image id in depth attachment index"));
                 throw std::runtime_error("[ERROR][CommandBuffer::cmd_begin_renderpass()] Invalid depth image id");
@@ -242,7 +241,7 @@ namespace  ff
         VkRenderingAttachmentInfo stencil_attachment_info = {};
         if (info.stencil_attachment.has_value())
         {
-            if(!device->resource_table->images.is_id_valid(info.stencil_attachment.value().image_id))
+            if (!device->resource_table->images.is_id_valid(info.stencil_attachment.value().image_id))
             {
                 BACKEND_LOG(fmt::format("[ERROR][CommandBuffer::cmd_begin_renderpass()] Invalid image id in stencil attachment index"));
                 throw std::runtime_error("[ERROR][CommandBuffer::cmd_begin_renderpass()] Invalid stencil image id");
@@ -278,7 +277,7 @@ namespace  ff
 
     void CommandBuffer::cmd_end_renderpass()
     {
-        if(in_renderpass == false)
+        if (in_renderpass == false)
         {
             BACKEND_LOG(fmt::format("[ERROR][CommandBuffer::cmd_end_renderpass()] end_renderpass() called without calling begin_renderpass() first"));
             throw std::runtime_error("[ERROR][CommandBuffer::cmd_end_renderpass()] end_renderpass() called without calling begin_renderpass() first");
@@ -291,7 +290,7 @@ namespace  ff
         device->command_buffer_zombies.push({
             .pool = pool,
             .buffer = buffer,
-            .cpu_timeline_value = device->main_cpu_timeline_value
+            .cpu_timeline_value = device->main_cpu_timeline_value,
         });
     }
-}
+} // namespace ff

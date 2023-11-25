@@ -1,6 +1,7 @@
 #include "../backend/backend.inl"
 
-BUFFER_REF(4) TestBuffer
+BUFFER_REF(4)
+TestBuffer
 {
     f32vec4 color;
 };

@@ -7,17 +7,17 @@
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
 
-void close_callback(GLFWwindow *window)
+void close_callback(GLFWwindow * window)
 {
-    WindowState *self = reinterpret_cast<WindowState *>(glfwGetWindowUserPointer(window));
+    WindowState * self = reinterpret_cast<WindowState *>(glfwGetWindowUserPointer(window));
     self->b_close_requested = true;
 }
 
-void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
+void key_callback(GLFWwindow * window, int key, int scancode, int action, int mods)
 {
     if (key == -1)
         return;
-    WindowState *self = reinterpret_cast<WindowState *>(glfwGetWindowUserPointer(window));
+    WindowState * self = reinterpret_cast<WindowState *>(glfwGetWindowUserPointer(window));
     if (action == GLFW_PRESS)
     {
         self->key_down[key] = true;
@@ -28,9 +28,9 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
     }
 }
 
-void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
+void mouse_button_callback(GLFWwindow * window, int button, int action, int mods)
 {
-    WindowState *self = reinterpret_cast<WindowState *>(glfwGetWindowUserPointer(window));
+    WindowState * self = reinterpret_cast<WindowState *>(glfwGetWindowUserPointer(window));
     if (action == GLFW_PRESS)
     {
         self->mouse_button_down[button] = true;
@@ -41,35 +41,35 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
     }
 }
 
-void cursor_move_callback(GLFWwindow *window, double xpos, double ypos)
+void cursor_move_callback(GLFWwindow * window, double xpos, double ypos)
 {
-    WindowState *self = reinterpret_cast<WindowState *>(glfwGetWindowUserPointer(window));
+    WindowState * self = reinterpret_cast<WindowState *>(glfwGetWindowUserPointer(window));
     self->cursor_change_x = static_cast<i32>(std::floor(xpos)) - self->old_cursor_pos_x;
     self->cursor_change_y = static_cast<i32>(std::floor(ypos)) - self->old_cursor_pos_y;
 }
-void window_resize_callback(GLFWwindow *window, i32 x, i32 y)
-{ 
-    WindowState *self = reinterpret_cast<WindowState *>(glfwGetWindowUserPointer(window));
+void window_resize_callback(GLFWwindow * window, i32 x, i32 y)
+{
+    WindowState * self = reinterpret_cast<WindowState *>(glfwGetWindowUserPointer(window));
     self->resized = true;
 }
 
-void window_focus_callback(GLFWwindow *window, int focused)
+void window_focus_callback(GLFWwindow * window, int focused)
 {
-    WindowState *self = reinterpret_cast<WindowState *>(glfwGetWindowUserPointer(window));
+    WindowState * self = reinterpret_cast<WindowState *>(glfwGetWindowUserPointer(window));
     self->b_focused = focused;
 }
 
 Window::Window(i32 width, i32 height, std::string_view name)
     : size{width, height},
-        name{name},
-        glfw_handle{
-            [=]()
-            {
-                glfwInit();
-                glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-                return glfwCreateWindow(width, height, name.data(), nullptr, nullptr);
-            }()},
-        window_state{std::make_unique<WindowState>()}
+      name{name},
+      glfw_handle{
+          [=]()
+          {
+              glfwInit();
+              glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+              return glfwCreateWindow(width, height, name.data(), nullptr, nullptr);
+          }()},
+      window_state{std::make_unique<WindowState>()}
 {
     glfwSetWindowUserPointer(this->glfw_handle, window_state.get());
 
@@ -117,7 +117,7 @@ Window::~Window()
     glfwTerminate();
 }
 
-const std::string &Window::get_name()
+std::string const & Window::get_name()
 {
     return this->name;
 }
@@ -257,7 +257,7 @@ u32 Window::get_height() const
     return h;
 }
 
-auto Window::get_handle() -> void*
+auto Window::get_handle() -> void *
 {
     return glfwGetWin32Window(glfw_handle);
 }

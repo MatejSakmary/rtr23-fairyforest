@@ -41,39 +41,9 @@ namespace ff
         context->swapchain->resize();
     }
 
-#include <chrono>
-#include <atomic>
-
-    namespace shino
-    {
-        template <typename Clock = std::chrono::high_resolution_clock>
-        class stopwatch
-        {
-            typename Clock::time_point const start_point;
-
-          public:
-            stopwatch() : start_point(Clock::now())
-            {
-            }
-
-            template <typename Rep = typename Clock::duration::rep, typename Units = typename Clock::duration>
-            Rep elapsed_time() const
-            {
-                std::atomic_thread_fence(std::memory_order_relaxed);
-                auto counted_time = std::chrono::duration_cast<Units>(Clock::now() - start_point).count();
-                std::atomic_thread_fence(std::memory_order_relaxed);
-                return static_cast<Rep>(counted_time);
-            }
-        };
-
-        using precise_stopwatch = stopwatch<>;
-        using system_stopwatch = stopwatch<std::chrono::system_clock>;
-        using monotonic_stopwatch = stopwatch<std::chrono::steady_clock>;
-    }; // namespace shino
-
     void Renderer::draw_frame()
     {
-        shino::precise_stopwatch stopwatch = {};
+        PreciseStopwatch stopwatch = {};
         auto swapchain_image = context->swapchain->acquire_next_image();
         u32 const fif_index = frame_index % (FRAMES_IN_FLIGHT + 1);
 
@@ -178,7 +148,7 @@ namespace ff
         context->swapchain->present({.wait_semaphores = {&present_semaphore, 1}});
         context->device->cleanup_resources();
         u32 elapsed_time = stopwatch.elapsed_time<unsigned int, std::chrono::microseconds>();
-        fmt::println("CPU frame time {}us FPS {}", elapsed_time, 1.0f/(elapsed_time * 0.000'001f));
+        fmt::println("CPU frame time {}us FPS {}", elapsed_time, 1.0f / (elapsed_time * 0.000'001f));
         frame_index += 1;
     }
 

@@ -6,7 +6,6 @@
 #include "device.hpp"
 #include "pipeline.hpp"
 
-
 namespace ff
 {
     struct CopyBufferToBufferInfo
@@ -77,37 +76,37 @@ namespace ff
         u32 vertex_count = 0;
         u32 instance_count = 1;
         u32 first_vertex = 0;
-        u32 first_instance = 0; 
+        u32 first_instance = 0;
     };
     struct CommandBuffer
     {
-        public:
-            CommandBuffer() = default;
-            CommandBuffer(std::shared_ptr<Device> device);
-            ~CommandBuffer();
+      public:
+        CommandBuffer() = default;
+        CommandBuffer(std::shared_ptr<Device> device);
+        ~CommandBuffer();
 
-            void begin();
-            void end();
-            void cmd_copy_buffer_to_buffer(CopyBufferToBufferInfo const & info);
-            void cmd_image_memory_transition_barrier(ImageMemoryBarrierTransitionInfo const & info);
-            void cmd_memory_barrier(MemoryBarrierInfo const & info);
-            template<typename T>
-            void cmd_set_push_constant(T const & push_constant) { cmd_set_push_constant_internal(&push_constant, sizeof(T)); };
-            void cmd_image_clear(ImageClearInfo const & info);
-            void cmd_set_raster_pipeline(Pipeline const & pipeline);
-            void cmd_draw(DrawInfo const & info);
-            void cmd_begin_renderpass(BeginRenderpassInfo const & info);
-            void cmd_end_renderpass();
-            auto get_recorded_command_buffer() -> VkCommandBuffer;
-        
-        private:
-            bool recording = {};
-            bool was_recorded = {};
-            bool in_renderpass = {};
-            std::shared_ptr<Device> device = {};
-            VkCommandPool pool = {};
-            VkCommandBuffer buffer = {};
+        void begin();
+        void end();
+        void cmd_copy_buffer_to_buffer(CopyBufferToBufferInfo const & info);
+        void cmd_image_memory_transition_barrier(ImageMemoryBarrierTransitionInfo const & info);
+        void cmd_memory_barrier(MemoryBarrierInfo const & info);
+        template <typename T>
+        void cmd_set_push_constant(T const & push_constant) { cmd_set_push_constant_internal(&push_constant, sizeof(T)); };
+        void cmd_image_clear(ImageClearInfo const & info);
+        void cmd_set_raster_pipeline(Pipeline const & pipeline);
+        void cmd_draw(DrawInfo const & info);
+        void cmd_begin_renderpass(BeginRenderpassInfo const & info);
+        void cmd_end_renderpass();
+        auto get_recorded_command_buffer() -> VkCommandBuffer;
 
-            void cmd_set_push_constant_internal(void const * data, u32 size);
+      private:
+        bool recording = {};
+        bool was_recorded = {};
+        bool in_renderpass = {};
+        std::shared_ptr<Device> device = {};
+        VkCommandPool pool = {};
+        VkCommandBuffer buffer = {};
+
+        void cmd_set_push_constant_internal(void const * data, u32 size);
     };
-}
+} // namespace ff

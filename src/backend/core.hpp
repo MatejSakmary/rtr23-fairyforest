@@ -16,11 +16,11 @@
 #include <vk_mem_alloc.h>
 #include <stdexcept>
 
-#define CHECK_VK_RESULT(x)                                                                                                  \
-    if((x) < 0)                                                                                                             \
-    {                                                                                                                       \
-        BACKEND_LOG(fmt::format("[ERROR][Core::CHECK_VK_RESULT] VK_RESULT has non-success value {}", static_cast<i32>(x)))  \
-        throw std::runtime_error("[ERROR][CORE::CHECK_VK_RESULT] VK_RESULT did not return success");                        \
+#define CHECK_VK_RESULT(x)                                                                                                 \
+    if ((x) < 0)                                                                                                           \
+    {                                                                                                                      \
+        BACKEND_LOG(fmt::format("[ERROR][Core::CHECK_VK_RESULT] VK_RESULT has non-success value {}", static_cast<i32>(x))) \
+        throw std::runtime_error("[ERROR][CORE::CHECK_VK_RESULT] VK_RESULT did not return success");                       \
     }
 
 #if defined(BACKEND_LOGGING)

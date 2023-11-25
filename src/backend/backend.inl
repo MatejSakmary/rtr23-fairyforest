@@ -18,7 +18,7 @@
 #extension GL_EXT_samplerless_texture_functions : require
 
 /// NOTE: Must match the ones in gpu_resource_table.cpp
-#define BUFFER_BINDING  0
+#define BUFFER_BINDING 0
 #define STORAGE_IMAGE_BINDING 1
 #define SAMPLED_IMAGE_BINDING 2
 #define SAMPLER_BINDING 3
@@ -56,6 +56,7 @@
 #define b32vec2 bvec2
 #define b32vec3 bvec3
 #define b32vec4 bvec4
+
 #define VkDeviceAddress u64
 
 #define BUFFER_REF(ALIGN) layout(buffer_reference, scalar, buffer_reference_align = ALIGN) buffer

@@ -1,10 +1,9 @@
 #include "pipeline.hpp"
 #include <fstream>
 
-namespace ff 
+namespace ff
 {
-    Pipeline::Pipeline(PipelineCreateInfo const & info) :
-        device{info.device}
+    Pipeline::Pipeline(PipelineCreateInfo const & info) : device{info.device}
     {
         std::vector<VkShaderModule> shader_modules = {};
         std::vector<std::string> entry_point_names = {};
@@ -36,6 +35,7 @@ namespace ff
             };
             pipeline_shader_stage_create_infos.push_back(vk_pipeline_shader_stage_create_info);
         };
+
         auto read_spirv_from_file = [](std::filesystem::path filepath) -> std::vector<u32>
         {
             std::ifstream ifs{filepath, std::ios::binary};
@@ -47,7 +47,7 @@ namespace ff
             ifs.seekg(0, ifs.end);
             const i32 filesize = ifs.tellg();
             ifs.seekg(0, ifs.beg);
-            std::vector<u32> raw(filesize/4);
+            std::vector<u32> raw(filesize / 4);
             if (!ifs.read(reinterpret_cast<char *>(raw.data()), filesize))
             {
                 BACKEND_LOG(fmt::format("[ERROR][Pipeline::Pipeline()] Failed to read entire shader spirv"));
@@ -56,13 +56,13 @@ namespace ff
             return raw;
         };
 
-        if (info.vert_spirv_path.has_value())                                                                                
-        {                                                                                                                          
+        if (info.vert_spirv_path.has_value())
+        {
             auto const spirv = read_spirv_from_file(info.vert_spirv_path.value());
             create_shader_module(spirv, info.entry_point, VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT);
         }
-        if (info.frag_spirv_path.has_value())                                                                                
-        {                                                                                                                          
+        if (info.frag_spirv_path.has_value())
+        {
             auto const spirv = read_spirv_from_file(info.frag_spirv_path.value());
             create_shader_module(spirv, info.entry_point, VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT);
         }
@@ -233,12 +233,12 @@ namespace ff
 
     Pipeline::~Pipeline()
     {
-        if(pipeline != VK_NULL_HANDLE)
+        if (pipeline != VK_NULL_HANDLE)
         {
             device->pipeline_zombies.push({
                 .pipeline = pipeline,
-                .cpu_timeline_value = device->main_cpu_timeline_value
+                .cpu_timeline_value = device->main_cpu_timeline_value,
             });
         }
     }
-}
+} // namespace ff
