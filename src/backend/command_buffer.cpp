@@ -3,7 +3,8 @@ namespace  ff
 {
     CommandBuffer::CommandBuffer(std::shared_ptr<Device> device) :
         device{device},
-        was_recorded{false}
+        was_recorded{false},
+        in_renderpass{false}
     {
         VkCommandPoolCreateInfo const command_pool_create_info = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -142,6 +143,103 @@ namespace  ff
         }
 
         return buffer;
+    }
+
+    void CommandBuffer::cmd_set_raster_pipeline(Pipeline const & pipeline)
+    {
+        vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, 1, &device->resource_table->descriptor_set, 0, nullptr);
+        vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.pipeline);
+    }
+
+    void CommandBuffer::cmd_draw(DrawInfo const & info)
+    {
+        vkCmdDraw(buffer, info.vertex_count, info.instance_count, info.first_vertex, info.first_instance);
+    }
+
+    void CommandBuffer::cmd_begin_renderpass(BeginRenderpassInfo const & info)
+    {
+        auto fill_rendering_attachment_info = [&](RenderingAttachmentInfo const & in) -> VkRenderingAttachmentInfo 
+        {
+            return VkRenderingAttachmentInfo{
+                .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+                .pNext = nullptr,
+                .imageView = device->resource_table->images.slot(in.image_id)->image_view,
+                .imageLayout = in.layout,
+                .resolveMode = VkResolveModeFlagBits::VK_RESOLVE_MODE_NONE,
+                .resolveImageView = VK_NULL_HANDLE,
+                .resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .loadOp = in.load_op,
+                .storeOp = in.store_op,
+                .clearValue = in.clear_value,
+            };
+        };
+
+        std::vector<VkRenderingAttachmentInfo> color_attachments = {};
+        color_attachments.reserve(info.color_attachments.size());
+        for (usize i = 0; i < info.color_attachments.size(); ++i)
+        {
+            if(!device->resource_table->images.is_id_valid(info.color_attachments.at(i).image_id))
+            {
+                BACKEND_LOG(fmt::format("[ERROR][CommandBuffer::cmd_begin_renderpass()] Invalid image id in color attachment index {}", i));
+                throw std::runtime_error("[ERROR][CommandBuffer::cmd_begin_renderpass()] Invalid color image id");
+            }
+            color_attachments.push_back(fill_rendering_attachment_info(info.color_attachments.at(i)));
+        }
+        VkRenderingAttachmentInfo depth_attachment_info = {};
+        if (info.depth_attachment.has_value())
+        {
+            if(!device->resource_table->images.is_id_valid(info.depth_attachment.value().image_id))
+            {
+                BACKEND_LOG(fmt::format("[ERROR][CommandBuffer::cmd_begin_renderpass()] Invalid image id in depth attachment index"));
+                throw std::runtime_error("[ERROR][CommandBuffer::cmd_begin_renderpass()] Invalid depth image id");
+            }
+            depth_attachment_info = fill_rendering_attachment_info(info.depth_attachment.value());
+        };
+        VkRenderingAttachmentInfo stencil_attachment_info = {};
+        if (info.stencil_attachment.has_value())
+        {
+            if(!device->resource_table->images.is_id_valid(info.stencil_attachment.value().image_id))
+            {
+                BACKEND_LOG(fmt::format("[ERROR][CommandBuffer::cmd_begin_renderpass()] Invalid image id in stencil attachment index"));
+                throw std::runtime_error("[ERROR][CommandBuffer::cmd_begin_renderpass()] Invalid stencil image id");
+            }
+            stencil_attachment_info = fill_rendering_attachment_info(info.stencil_attachment.value());
+        };
+
+        VkRenderingInfo const rendering_info = {
+            .sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR,
+            .pNext = nullptr,
+            .flags = {},
+            .renderArea = info.render_area,
+            .layerCount = 1,
+            .viewMask = {},
+            .colorAttachmentCount = static_cast<u32>(info.color_attachments.size()),
+            .pColorAttachments = color_attachments.data(),
+            .pDepthAttachment = info.depth_attachment.has_value() ? &depth_attachment_info : nullptr,
+            .pStencilAttachment = info.stencil_attachment.has_value() ? &stencil_attachment_info : nullptr,
+        };
+        vkCmdSetScissor(buffer, 0, 1, &info.render_area);
+        VkViewport const viewport = {
+            .x = static_cast<f32>(info.render_area.offset.x),
+            .y = static_cast<f32>(info.render_area.offset.y),
+            .width = static_cast<f32>(info.render_area.extent.width),
+            .height = static_cast<f32>(info.render_area.extent.height),
+            .minDepth = 0.0f,
+            .maxDepth = 1.0f,
+        };
+        vkCmdSetViewport(buffer, 0, 1, &viewport);
+        vkCmdBeginRendering(buffer, &rendering_info);
+        in_renderpass = true;
+    }
+
+    void CommandBuffer::cmd_end_renderpass()
+    {
+        if(in_renderpass == false)
+        {
+            BACKEND_LOG(fmt::format("[ERROR][CommandBuffer::cmd_end_renderpass()] end_renderpass() called without calling begin_renderpass() first"));
+            throw std::runtime_error("[ERROR][CommandBuffer::cmd_end_renderpass()] end_renderpass() called without calling begin_renderpass() first");
+        }
+        vkCmdEndRendering(buffer);
     }
 
     CommandBuffer::~CommandBuffer()

@@ -14,5 +14,6 @@ namespace ff
             void resize();
         private:
             std::shared_ptr<Context> context = {};
+            Pipeline triangle_pipeline = {};
     };
 }

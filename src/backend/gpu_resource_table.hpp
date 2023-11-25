@@ -65,6 +65,8 @@ namespace ff
             ~GpuResourceTable();
 
         private:
+            friend struct Pipeline;
+            friend struct CommandBuffer;
             CreateGpuResourceTableInfo info = {};
             std::array<VkPipelineLayout, PIPELINE_LAYOUT_COUNT> pipeline_layouts = {};
             VkDevice vulkan_device = {};

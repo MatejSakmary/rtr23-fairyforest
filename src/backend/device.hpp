@@ -30,6 +30,12 @@ namespace ff
         VkCommandBuffer buffer = {};
         u64 cpu_timeline_value = {};
     };
+
+    struct PipelineZombie
+    {
+        VkPipeline pipeline = {};
+        u64 cpu_timeline_value = {};
+    };
     struct Device
     {
         public:
@@ -39,6 +45,9 @@ namespace ff
 
             Device() = default;
             Device(std::shared_ptr<Instance> instance);
+
+            auto info_image(ImageId image_id) -> CreateImageInfo &;
+
             void submit(SubmitInfo const & info);
             void cleanup_resources();
             void wait_idle();
@@ -47,6 +56,7 @@ namespace ff
         private:
             friend struct Swapchain;
             friend struct CommandBuffer;
+            friend struct Pipeline;
 
             constexpr static u32 MAX_BUFFERS = 1000u;
             constexpr static u32 MAX_IMAGES = 1000u;
@@ -64,6 +74,7 @@ namespace ff
             PFN_vkCmdEndDebugUtilsLabelEXT vkCmdEndDebugUtilsLabelEXT = {};
 
             std::queue<CommandBufferZombie> command_buffer_zombies = {};
+            std::queue<PipelineZombie> pipeline_zombies = {};
 
             i32 main_queue_family_index = {};
             u64 main_cpu_timeline_value = {};

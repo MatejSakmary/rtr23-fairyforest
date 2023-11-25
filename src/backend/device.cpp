@@ -135,6 +135,16 @@ namespace ff
         });
     }
 
+    auto Device::info_image(ImageId image_id) -> CreateImageInfo &
+    {
+        if(!resource_table->images.is_id_valid(image_id))
+        {
+            BACKEND_LOG(fmt::format("[ERROR][Device::info_image()] Invalid image id"));
+            throw std::runtime_error("[ERROR][Device::info_image()] Invalid image id");
+        }
+        return resource_table->images.slot(image_id)->image_info;
+    }
+
     auto Device::create_swapchain_image(VkImage swapchain_image, CreateImageInfo const & info) -> ImageId
     {
         ImageId const id = resource_table->images.create_slot();
@@ -313,12 +323,17 @@ namespace ff
             }
             vkFreeCommandBuffers(vulkan_device, command_buffer_zombies.front().pool, 1, &command_buffer_zombies.front().buffer);
             vkDestroyCommandPool(vulkan_device, command_buffer_zombies.front().pool, nullptr);
-            // BACKEND_LOG(fmt::format("[INFO][CommandBuffer::~CommandBuffer()] Vulkan command pool and buffer destroyed CPU destruction time {} GPU curr time {} CPU real time {}",
-            //     command_buffer_zombies.back().cpu_timeline_value,
-            //     gpu_timeline_value,
-            //     main_cpu_timeline_value
-            // ));
             command_buffer_zombies.pop();
+        }
+
+        while(!pipeline_zombies.empty())
+        {
+            if(pipeline_zombies.front().cpu_timeline_value > gpu_timeline_value)
+            {
+                break;
+            }
+            vkDestroyPipeline(vulkan_device, pipeline_zombies.front().pipeline, nullptr);
+            pipeline_zombies.pop();
         }
     }
 
@@ -331,6 +346,7 @@ namespace ff
     Device::~Device()
     {
         resource_table.reset();
+        wait_idle();
         cleanup_resources();
         vkDestroySemaphore(vulkan_device, main_gpu_semaphore, nullptr);
         vkDestroyDevice(vulkan_device, nullptr);
