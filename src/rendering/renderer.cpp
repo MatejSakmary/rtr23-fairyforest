@@ -16,22 +16,20 @@ namespace ff
         test_image = context->device->create_image({
             .extent = {1, 1, 1},
             .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-            .alloc_flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+            .alloc_flags = {},
             .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
             .name = "test image",
         });
 
         staging_test_buffer = context->device->create_buffer({
-            .size = sizeof(f32vec4),
-            .flags =
-                VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT |
-                VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+            .size = sizeof(f32vec4) * (FRAMES_IN_FLIGHT + 1),
+            .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
             .name = "staging test buffer",
         });
 
         test_buffer = context->device->create_buffer({
-            .size = sizeof(f32vec4) * (FRAMES_IN_FLIGHT + 1),
-            .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+            .size = sizeof(f32vec4),
+            .flags = {},
             .name = "test buffer",
         });
     }
@@ -86,7 +84,7 @@ namespace ff
             .src_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
             .src_access = VK_ACCESS_2_TRANSFER_WRITE_BIT,
             .dst_stages = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-            .dst_access = VK_ACCESS_2_TRANSFER_READ_BIT,
+            .dst_access = VK_ACCESS_2_SHADER_READ_BIT,
         });
 
         command_buffer.cmd_image_memory_transition_barrier({

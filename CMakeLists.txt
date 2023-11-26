@@ -56,21 +56,40 @@ add_executable(${PROJECT_NAME}
     "src/backend/command_buffer.cpp"
     "src/backend/pipeline.cpp"
     "src/rendering/renderer.cpp"
+    "src/scene/asset_processor.cpp"
+    "src/scene/scene.cpp"
     "shaders.txt"
 )
-
-# add_dependencies(${PROJECT_NAME} shaders)
 
 find_package(fmt CONFIG REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
+find_package(fastgltf CONFIG REQUIRED)
+find_package(freeimage CONFIG REQUIRED)
 find_package(Vulkan REQUIRED)
 
+# FreeImage links OpenEXR, which adds /EHsc for its targets, even if we're using Clang
+function(FIXUP_TARGET TGT_NAME)
+    if(CMAKE_CXX_COMPILER_ID MATCHES Clang)
+        get_property(A_OPTIONS TARGET ${TGT_NAME} PROPERTY INTERFACE_COMPILE_OPTIONS)
+        string(REPLACE "/EHsc" "-Wl,/EHsc" A_OPTIONS "")
+        set_property(TARGET ${TGT_NAME} PROPERTY INTERFACE_COMPILE_OPTIONS "${A_OPTIONS}")
+    endif()
+endfunction()
+
+FIXUP_TARGET(Imath::Imath)
+FIXUP_TARGET(OpenEXR::Iex)
+FIXUP_TARGET(OpenEXR::IlmThread)
+FIXUP_TARGET(OpenEXR::OpenEXRCore)
+FIXUP_TARGET(OpenEXR::OpenEXR)
+FIXUP_TARGET(OpenEXR::OpenEXRUtil)
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    Vulkan::Vulkan
     GPUOpen::VulkanMemoryAllocator
+    freeimage::FreeImage
+    fastgltf::fastgltf
+    Vulkan::Vulkan
     fmt::fmt
     glfw
 )

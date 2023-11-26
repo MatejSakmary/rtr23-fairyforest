@@ -461,3 +461,5 @@ vcpkg/
 compile_commands.json
 
 .idea
+
+assets/*

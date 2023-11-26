@@ -126,7 +126,7 @@ namespace ff
 #define APP_LOG(M) fmt::println("[APP]{}", M);
 #define DBG_ASSERT_TRUE_M(X, M)                                  \
     [&] {                                                        \
-        if (!(x))                                                \
+        if (!(X))                                                \
         {                                                        \
             fmt::println("ASSERTION FAILURE: {}", M);            \
             throw std::runtime_error("DEBUG ASSERTION FAILURE"); \
@@ -136,3 +136,12 @@ namespace ff
 #define DBG_ASSERT_TRUE_M(X, M)
 #define APP_LOG(M)
 #endif
+
+#ifndef defer
+struct defer_dummy {};
+template <class F> struct deferrer { F f; ~deferrer() { f(); } };
+template <class F> deferrer<F> operator*(defer_dummy, F f) { return {f}; }
+#define DEFER_(LINE) zz_defer##LINE
+#define DEFER(LINE) DEFER_(LINE)
+#define defer auto DEFER(__LINE__) = defer_dummy{} *[&]()
+#endif // defer

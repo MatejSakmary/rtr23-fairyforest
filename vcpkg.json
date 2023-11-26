@@ -5,6 +5,8 @@
     "vulkan-memory-allocator",
     "glfw3",
     "glm",
-    "fmt"
+    "fmt",
+    "fastgltf",
+    "freeimage"
   ]
 }
