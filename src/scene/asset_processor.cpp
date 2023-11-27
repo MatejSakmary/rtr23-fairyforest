@@ -685,9 +685,11 @@ auto AssetProcessor::load_mesh(Scene & scene, u32 mesh_manifest_index) -> AssetP
     indices.insert(indices.end(), index_buffer.begin(), index_buffer.end());
 
     mesh_data.cpu_runtime = MeshDescriptorCpu{
+        .vertex_count = static_cast<u32>(vert_positions.size()),
         .positions_offset = positions_offset,
-        .indices_offset = indices_offset,
         .uvs_offset = uvs_offset,
+        .index_count = static_cast<u32>(index_buffer.size()),
+        .indices_offset = indices_offset,
     };
     return AssetProcessor::AssetLoadResultCode::SUCCESS;
 }
@@ -804,7 +806,7 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
             .src_offset = 0,
             .dst_buffer = scene._gpu_mesh_positions,
             .dst_offset = 0,
-            .size = static_cast<u32>(sizeof(u32) * positions.size()),
+            .size = static_cast<u32>(sizeof(f32vec3) * positions.size()),
         });
         positions_command_buffer.end();
         auto recorded_command_buffer = positions_command_buffer.get_recorded_command_buffer();
@@ -857,10 +859,10 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
             auto & mesh = scene._mesh_manifest.at(meshgroup.mesh_manifest_indices.at(mesh_idx));
             mesh.cpu_runtime->transforms_offset = static_cast<u32>(transforms.size());
             mesh_descriptors.push_back({
-                .transforms_start = mesh.cpu_runtime->transforms_offset,
-                .positions_start = mesh.cpu_runtime->positions_offset,
-                .uvs_start = mesh.cpu_runtime->uvs_offset,
-                .indices_start = mesh.cpu_runtime->indices_offset,
+                .transforms_offset = mesh.cpu_runtime->transforms_offset,
+                .positions_offset = mesh.cpu_runtime->positions_offset,
+                .uvs_offset = mesh.cpu_runtime->uvs_offset,
+                .indices_offset = mesh.cpu_runtime->indices_offset,
                 .material_index = 0,
             });
         }
@@ -925,6 +927,43 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
         auto recorded_command_buffer = mesh_descriptors_command_buffer.get_recorded_command_buffer();
         _device->submit({.command_buffers = {&recorded_command_buffer, 1}});
         _device->destroy_buffer(mesh_descriptors_staging);
+        _device->wait_idle();
+        _device->cleanup_resources();
+    }
+    {
+        auto scene_descriptor_command_buffer = ff::CommandBuffer(_device);
+        scene_descriptor_command_buffer.begin();
+        scene._gpu_scene_descriptor = _device->create_buffer({
+            .size = sizeof(SceneDescriptor),
+            .flags = {},
+            .name = "gpu_scene_descriptor"
+        });
+        auto scene_descriptor_staging = _device->create_buffer({
+            .size = sizeof(SceneDescriptor),
+            .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+            .name = "gpu_scene_descriptor staging"
+        });
+        SceneDescriptor * staging_ptr = reinterpret_cast<SceneDescriptor*>(_device->get_buffer_host_pointer(scene_descriptor_staging));
+        *staging_ptr = {
+            .mesh_descriptors_start = _device->get_buffer_device_address(scene._gpu_mesh_descriptors),
+            /// TODO: Fill this in order for materials to work
+            .material_descriptors_start = {},
+            .transforms_start = _device->get_buffer_device_address(scene._gpu_mesh_transforms),
+            .positions_start = _device->get_buffer_device_address(scene._gpu_mesh_positions),
+            .uvs_start = _device->get_buffer_device_address(scene._gpu_mesh_uvs),
+            .indices_start = _device->get_buffer_device_address(scene._gpu_mesh_indices),
+        };
+        scene_descriptor_command_buffer.cmd_copy_buffer_to_buffer({
+            .src_buffer = scene_descriptor_staging,
+            .src_offset = 0,
+            .dst_buffer = scene._gpu_scene_descriptor,
+            .dst_offset = 0,
+            .size = static_cast<u32>(sizeof(SceneDescriptor)),
+        });
+        scene_descriptor_command_buffer.end();
+        auto recorded_command_buffer = scene_descriptor_command_buffer.get_recorded_command_buffer();
+        _device->submit({.command_buffers = {&recorded_command_buffer, 1}});
+        _device->destroy_buffer(scene_descriptor_staging);
         _device->wait_idle();
         _device->cleanup_resources();
     }

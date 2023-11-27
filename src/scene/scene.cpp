@@ -18,6 +18,7 @@ Scene::~Scene()
     _device->destroy_buffer(_gpu_mesh_uvs);
     _device->destroy_buffer(_gpu_mesh_indices);
     _device->destroy_buffer(_gpu_mesh_descriptors);
+    _device->destroy_buffer(_gpu_scene_descriptor);
 }
 
 // TODO: Loading god function.
@@ -26,6 +27,11 @@ auto Scene::load_manifest_from_gltf(std::filesystem::path const & root_path, std
 #pragma region SETUP
     auto file_path = root_path / glb_name;
 
+    std::array<fastgltf::Parser, 20> parsers;
+    for(i32 i = 0; i < 20; i++)
+    {
+        parsers.at(i) = fastgltf::Parser(static_cast<fastgltf::Extensions>(1 << i));
+    }
     fastgltf::Parser parser{};
 
     constexpr auto gltf_options =
@@ -44,7 +50,21 @@ auto Scene::load_manifest_from_gltf(std::filesystem::path const & root_path, std
     {
         case fastgltf::GltfType::glTF:
         {
+            for(i32 i = 0; i < 20; i++)
+            {
+                fastgltf::Expected<fastgltf::Asset> result = parsers.at(i).loadGLTF(&data, file_path.parent_path(), gltf_options);
+                if (result.error() != fastgltf::Error::None)
+                {
+                    APP_LOG(fmt::format("{}",static_cast<u32>(result.error())));
+                    // return LoadManifestErrorCode::COULD_NOT_LOAD_ASSET;
+                }
+                else
+                {
+                    APP_LOG(fmt::format("{}",static_cast<u32>(i)));
+                }
+            }
             fastgltf::Expected<fastgltf::Asset> result = parser.loadGLTF(&data, file_path.parent_path(), gltf_options);
+            APP_LOG(fmt::format("{}",static_cast<u32>(result.error())));
             if (result.error() != fastgltf::Error::None)
             {
                 return LoadManifestErrorCode::COULD_NOT_LOAD_ASSET;
@@ -301,4 +321,27 @@ auto Scene::load_manifest_from_gltf(std::filesystem::path const & root_path, std
         .root_render_entity = root_r_ent_id,
     });
     return root_r_ent_id;
+}
+
+auto Scene::record_scene_draw_commands() -> SceneDrawCommands
+{
+    SceneDrawCommands commands = {};
+    commands.scene_descriptor = _device->get_buffer_device_address(_gpu_scene_descriptor);
+    u32 global_mesh_idx = 0;
+    for(auto const & mesh_group : _mesh_group_manifest)
+    {
+        for(u32 mesh_index = 0; mesh_index < mesh_group.mesh_count; mesh_index++)
+        {
+            auto const & mesh = _mesh_manifest.at(mesh_group.mesh_manifest_indices.at(mesh_index));
+            commands.draw_commands.push_back({
+                .mesh_idx = global_mesh_idx,
+                .vertex_count = mesh.cpu_runtime->vertex_count,
+                .index_count = mesh.cpu_runtime->index_count,
+                .index_offset = mesh.cpu_runtime->indices_offset,
+                .instance_count = static_cast<u32>(mesh_group.instance_transforms.size())
+            });
+            global_mesh_idx += 1;
+        }
+    }
+    return commands;
 }

@@ -43,9 +43,11 @@ struct MaterialManifestEntry
 
 struct MeshDescriptorCpu
 {
+    u32 vertex_count = {};
     u32 positions_offset = {};
-    u32 indices_offset = {};
     u32 uvs_offset = {};
+    u32 index_count = {};
+    u32 indices_offset = {};
     u32 transforms_offset = {};
 };
 
@@ -106,9 +108,18 @@ struct SceneFileManifestEntry
 
 using RenderEntitySlotMap = ff::SlotMap<RenderEntity>;
 
-struct SceneDrawCommand
+struct DrawCommand
 {
-
+    u32 mesh_idx = {};
+    u32 vertex_count = {};
+    u32 index_count = {};
+    u32 index_offset = {};
+    u32 instance_count = {};
+};
+struct SceneDrawCommands 
+{
+    VkDeviceAddress scene_descriptor = {};
+    std::vector<DrawCommand> draw_commands = {};
 };
 
 struct Scene
@@ -121,6 +132,8 @@ struct Scene
 
     ff::BufferId _gpu_mesh_descriptors = {};
     ff::BufferId _gpu_material_descriptors = {};
+
+    ff::BufferId _gpu_scene_descriptor = {};
 
     RenderEntitySlotMap _render_entities = {};
     std::vector<RenderEntityId> _dirty_render_entities = {}; 
@@ -160,7 +173,7 @@ struct Scene
     }
     auto load_manifest_from_gltf(std::filesystem::path const& root_path, std::filesystem::path const& glb_name) -> std::variant<RenderEntityId, LoadManifestErrorCode>;
 
-    auto record_scene_draw_commands() -> SceneDrawCommand;
+    auto record_scene_draw_commands() -> SceneDrawCommands;
 
     std::shared_ptr<ff::Device> _device = {};
 };

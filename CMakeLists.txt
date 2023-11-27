@@ -13,7 +13,7 @@ macro(compile_glsl GLSL_SOURCES STAGE)
 		add_custom_command(
 			OUTPUT ${SPIRV}
 			COMMAND ${CMAKE_COMMAND} -E make_directory "src/shaders/bin/"
-			COMMAND ${GLSLC} -fshader-stage=${STAGE} ${GLSL} -I. -o ${SPIRV}
+			COMMAND ${GLSLC} -fshader-stage=${STAGE} ${GLSL} -I. -o ${SPIRV} -g
 			WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
 			DEPENDS ${GLSL}
 		)
@@ -28,10 +28,12 @@ endif()
 
 set (GLSL_VERT_SOURCE_FILES
     "src/shaders/triangle.vert"
+    "src/shaders/mesh_draw.vert"
 )
 
 set (GLSL_FRAG_SOURCE_FILES
     "src/shaders/triangle.frag"
+    "src/shaders/mesh_draw.frag"
 )
 
 compile_glsl("${GLSL_VERT_SOURCE_FILES}" "vert")

@@ -6,96 +6,71 @@ namespace ff
         : context{context},
           triangle_pipeline({PipelineCreateInfo{
               .device = context->device,
-              .vert_spirv_path = ".\\src\\shaders\\bin\\triangle.vert.spv",
-              .frag_spirv_path = ".\\src\\shaders\\bin\\triangle.frag.spv",
+              .vert_spirv_path = ".\\src\\shaders\\bin\\mesh_draw.vert.spv",
+              .frag_spirv_path = ".\\src\\shaders\\bin\\mesh_draw.frag.spv",
               .attachments = {{.format = context->swapchain->surface_format.format}},
+              .depth_test = DepthTestInfo{
+                  .depth_attachment_format = VkFormat::VK_FORMAT_D32_SFLOAT,
+                  .enable_depth_write = 1,
+                  .depth_test_compare_op = VkCompareOp::VK_COMPARE_OP_GREATER,
+              },
               .entry_point = "main",
-              .push_constant_size = sizeof(TrianglePC),
-              .name = "triangle pipeline"}})
+              .push_constant_size = sizeof(DrawPc),
+              .name = "mesh draw pipeline"}})
     {
-        test_image = context->device->create_image({
-            .extent = {1, 1, 1},
-            .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-            .alloc_flags = {},
-            .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
-            .name = "test image",
-        });
-
-        staging_test_buffer = context->device->create_buffer({
-            .size = sizeof(f32vec4) * (FRAMES_IN_FLIGHT + 1),
-            .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
-            .name = "staging test buffer",
-        });
-
-        test_buffer = context->device->create_buffer({
-            .size = sizeof(f32vec4),
-            .flags = {},
-            .name = "test buffer",
+        auto const swapchain_extent = context->swapchain->surface_extent;
+        depth_buffer = context->device->create_image({
+            .format = VkFormat::VK_FORMAT_D32_SFLOAT,
+            .extent = {swapchain_extent.width, swapchain_extent.height, 1},
+            .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT,
+            .name = "depth buffer",
         });
     }
 
     void Renderer::resize()
     {
         context->swapchain->resize();
+        context->device->destroy_image(depth_buffer);
+        auto const swapchain_extent = context->swapchain->surface_extent;
+        depth_buffer = context->device->create_image({
+            .format = VkFormat::VK_FORMAT_D32_SFLOAT,
+            .extent = {swapchain_extent.width, swapchain_extent.height, 1},
+            .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT,
+            .name = "depth buffer",
+        });
     }
 
-    void Renderer::draw_frame()
+    void Renderer::draw_frame(SceneDrawCommands const & draw_commands, CameraInfo const & camera_info)
     {
         PreciseStopwatch stopwatch = {};
         auto swapchain_image = context->swapchain->acquire_next_image();
         u32 const fif_index = frame_index % (FRAMES_IN_FLIGHT + 1);
 
-        auto * data_ptr = reinterpret_cast<f32vec4 *>(context->device->get_buffer_host_pointer(staging_test_buffer));
-        data_ptr[fif_index] = f32vec4(
-            std::abs(std::sin(static_cast<f32>(frame_index) * 0.001f)),
-            std::abs(std::cos(static_cast<f32>(frame_index) * 0.001f)),
-            0.0, 1.0);
-
         auto command_buffer = CommandBuffer(context->device);
         command_buffer.begin();
 
         command_buffer.cmd_image_memory_transition_barrier({
-            .src_stages = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-            .src_access = VK_ACCESS_2_NONE,
-            .dst_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-            .dst_access = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-            .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED,
-            .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
-            .image_id = swapchain_image,
-        });
-
-        command_buffer.cmd_copy_buffer_to_buffer({
-            .src_buffer = staging_test_buffer,
-            .src_offset = static_cast<u32>(sizeof(f32vec4)) * fif_index,
-            .dst_buffer = test_buffer,
-            .dst_offset = 0,
-            .size = sizeof(f32vec4),
-        });
-
-        command_buffer.cmd_image_clear({
-            .layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .clear_value = VkClearColorValue{{0.05, 0.05, 0.05, 1.0}},
-            .image_id = swapchain_image,
-            .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
-        });
-
-        command_buffer.cmd_memory_barrier({
-            .src_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-            .src_access = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-            .dst_stages = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-            .dst_access = VK_ACCESS_2_SHADER_READ_BIT,
-        });
-
-        command_buffer.cmd_image_memory_transition_barrier({
-            .src_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-            .src_access = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+            .src_stages = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
+            .src_access = VK_ACCESS_2_NONE_KHR,
             .dst_stages = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
             .dst_access = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-            .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED,
             .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
             .image_id = swapchain_image,
+        });
+
+        command_buffer.cmd_image_memory_transition_barrier({
+            .src_stages = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
+            .src_access = VK_ACCESS_2_NONE_KHR,
+            .dst_stages = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
+            .dst_access = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED,
+            .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+            .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT,
+            .image_id = depth_buffer,
         });
 
         auto const & swapchain_extent = context->device->info_image(swapchain_image).extent;
@@ -104,16 +79,31 @@ namespace ff
             .color_attachments = {{
                 .image_id = swapchain_image,
                 .layout = VkImageLayout::VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
-                .load_op = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_LOAD,
+                .load_op = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR,
                 .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE,
+                .clear_value = {.color = {.float32 = {0.02f, 0.02f, 0.02f, 1.0f}}},
             }},
-            .render_area = VkRect2D{
-                .offset = {.x = 0, .y = 0},
-                .extent = {.width = swapchain_extent.width, .height = swapchain_extent.height}},
+            .depth_attachment = RenderingAttachmentInfo{
+                .image_id = depth_buffer,
+                .layout = VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+                .load_op = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR,
+                .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                .clear_value = {.depthStencil = {.depth = 0.0f, .stencil = 0}},
+            },
+            .render_area = VkRect2D{.offset = {.x = 0, .y = 0}, .extent = {.width = swapchain_extent.width, .height = swapchain_extent.height}},
         });
         command_buffer.cmd_set_raster_pipeline(triangle_pipeline);
-        command_buffer.cmd_set_push_constant(TrianglePC{.test_buffer_address = context->device->get_buffer_device_address(test_buffer)});
-        command_buffer.cmd_draw({.vertex_count = 3});
+        for (auto const & draw_command : draw_commands.draw_commands)
+        {
+            command_buffer.cmd_set_push_constant(DrawPc{
+                .scene_descriptor = draw_commands.scene_descriptor,
+                .view_proj = camera_info.viewproj,
+                .mesh_index = draw_command.mesh_idx});
+            command_buffer.cmd_draw({
+                .vertex_count = draw_command.index_count,
+                .instance_count = draw_command.instance_count,
+            });
+        }
         command_buffer.cmd_end_renderpass();
 
         command_buffer.cmd_image_memory_transition_barrier({
@@ -152,8 +142,6 @@ namespace ff
 
     Renderer::~Renderer()
     {
-        context->device->destroy_image(test_image);
-        context->device->destroy_buffer(test_buffer);
-        context->device->destroy_buffer(staging_test_buffer);
+        context->device->destroy_image(depth_buffer);
     }
 } // namespace ff
