@@ -3,7 +3,7 @@
 void CameraController::process_input(Window & window, f32 dt)
 {
     f32 speed = window.key_pressed(GLFW_KEY_LEFT_SHIFT) ? translation_speed * 4.0f : translation_speed;
-    speed = window.key_pressed(GLFW_KEY_LEFT_CONTROL) ? speed * 0.25f : speed;
+    speed = window.key_pressed(GLFW_KEY_LEFT_ALT) ? speed * 0.25f : speed;
 
     if (window.is_focused())
     {

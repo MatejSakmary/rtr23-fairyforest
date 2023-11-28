@@ -87,7 +87,7 @@ namespace ff
                 .layout = VkImageLayout::VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
                 .load_op = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR,
                 .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE,
-                .clear_value = {.color = {.float32 = {0.002f, 0.002f, 0.002f, 1.0f}}},
+                .clear_value = {.color = {.float32 = {0.5f, 0.7f, 1.0f, 1.0f}}},
             }},
             .depth_attachment = RenderingAttachmentInfo{
                 .image_id = depth_buffer,

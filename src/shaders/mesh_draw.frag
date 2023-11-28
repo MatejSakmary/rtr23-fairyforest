@@ -53,5 +53,11 @@ void main()
     const f32vec3 world_normal = normalize(TBN * rescaled_normal);
 
     const f32 tex_sun_norm_dot = clamp(dot(world_normal, data.sun_direction), 0.0, 1.0);
-    out_color = f32vec4(tex_sun_norm_dot * albedo.rgb, 1.0);
+
+    const f32vec3 sun_color = vec3(1.0, 0.95, 0.6);
+    const f32vec3 sky_color = vec3(0.5, 0.7, 1.0);
+    const f32 ambient_factor = (dot(f32vec3(0.0, 0.0, 1.0), world_normal) * 0.4 + 0.6) * 0.2;
+    f32vec3 diffuse = tex_sun_norm_dot * sun_color;
+    diffuse += ambient_factor * sky_color;
+    out_color = f32vec4(diffuse * albedo.rgb, 1.0);
 }
