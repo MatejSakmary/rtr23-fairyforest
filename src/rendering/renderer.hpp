@@ -21,7 +21,7 @@ namespace ff
         Renderer(std::shared_ptr<Context> context);
         ~Renderer();
 
-        void draw_frame(SceneDrawCommands const & draw_commands, CameraInfo const & camera_info);
+        void draw_frame(SceneDrawCommands const & draw_commands, CameraInfo const & camera_info, f32 delta_time);
         void resize();
 
       private:

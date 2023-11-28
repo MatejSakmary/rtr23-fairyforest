@@ -8,6 +8,8 @@ SceneDescriptor
     VkDeviceAddress transforms_start;
     VkDeviceAddress positions_start;
     VkDeviceAddress uvs_start;
+    VkDeviceAddress normals_start;
+    VkDeviceAddress tangents_start;
     VkDeviceAddress indices_start;
 };
 
@@ -25,6 +27,8 @@ MeshDescriptor
     u32 transforms_offset;
     u32 positions_offset;
     u32 uvs_offset;
+    u32 tangents_offset;
+    u32 normals_offset;
     u32 indices_offset;
     u32 material_index;
 };
@@ -35,4 +39,5 @@ struct DrawPc
     f32mat4x4 view_proj;
     u32 mesh_index;
     u32 sampler_id;
+    f32vec3 sun_direction;
 };

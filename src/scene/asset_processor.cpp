@@ -216,7 +216,7 @@ struct PixelInfo
     ChannelDataType channel_data_type;
 };
 
-constexpr static auto daxa_image_format_from_pixel_info(PixelInfo const & info) -> VkFormat
+constexpr static auto image_format_from_pixel_info(PixelInfo const & info) -> VkFormat
 {
     std::array<std::array<std::array<VkFormat, 3>, 4>, 3> translation = {
         // BYTE SIZE 1
@@ -342,9 +342,11 @@ static auto free_image_parse_raw_image_data(RawImageData && raw_data, std::share
     ChannelInfo const & channel_info = std::get<ChannelInfo>(parsed_channel);
     u32 const channel_count = bits_per_pixel / (channel_info.byte_size * 8u);
 
-    VkFormat daxa_image_format = daxa_image_format_from_pixel_info({.channel_count = static_cast<u8>(channel_count),
-                                                                    .channel_byte_size = channel_info.byte_size,
-                                                                    .channel_data_type = channel_info.data_type});
+    VkFormat vulkan_image_format = image_format_from_pixel_info({
+        .channel_count = static_cast<u8>(channel_count),
+        .channel_byte_size = channel_info.byte_size,
+        .channel_data_type = channel_info.data_type,
+    });
 
     /// TODO: Breaks for 32bit 3 channel images (or overallocates idk)
     u32 const rounded_channel_count = channel_count == 3 ? 4 : channel_count;
@@ -374,7 +376,7 @@ static auto free_image_parse_raw_image_data(RawImageData && raw_data, std::share
 
     ret.dst_image = device->create_image({
         .dimensions = 2,
-        .format = daxa_image_format,
+        .format = vulkan_image_format,
         .extent = {width, height, 1},
         /// TODO: Add support for generating mip levels
         .mip_level_count = 1,
@@ -409,52 +411,6 @@ AssetProcessor::~AssetProcessor()
 #ifdef FREEIMAGE_LIB
     FreeImage_DeInitialise();
 #endif
-}
-
-auto AssetProcessor::load_nonmanifest_texture(std::filesystem::path const & filepath) -> NonmanifestLoadRet
-{
-    /// TODO: ADD FUNCTIONALITY
-    // RawDataRet raw_data_ret = raw_image_data_from_path(filepath);
-    // if(std::holds_alternative<AssetProcessor::AssetLoadResultCode>(raw_data_ret))
-    // {
-    //     return std::get<AssetProcessor::AssetLoadResultCode>(raw_data_ret);
-    // }
-    // RawImageData & raw_data = std::get<RawImageData>(raw_data_ret);
-    // ParsedImageRet parsed_data_ret = free_image_parse_raw_image_data(std::move(raw_data), _device);
-    // if (auto const *error = std::get_if<AssetProcessor::AssetLoadResultCode>(&parsed_data_ret))
-    // {
-    //     return *error;
-    // }
-    // ParsedImageData const &parsed_data = std::get<ParsedImageData>(parsed_data_ret);
-
-    // auto command_buffer = ff::CommandBuffer(_device);
-    // command_buffer.destroy_buffer_deferred(parsed_data.src_buffer);
-    // command_buffer.pipeline_barrier_image_transition({
-    //     .dst_access = daxa::AccessConsts::TRANSFER_WRITE,
-    //     .dst_layout = daxa::ImageLayout::TRANSFER_DST_OPTIMAL,
-    //     .image_id = parsed_data.dst_image,
-    // });
-
-    // command_buffer.copy_buffer_to_image({
-    //     .buffer = parsed_data.src_buffer,
-    //     .image = parsed_data.dst_image,
-    //     .image_extent = _device.info_image(parsed_data.dst_image).value().size
-    // });
-
-    // command_buffer.pipeline_barrier_image_transition({
-    //     .src_access = daxa::AccessConsts::TRANSFER_WRITE,
-    //     .dst_access = daxa::AccessConsts::ALL_GRAPHICS_READ,
-    //     .src_layout = daxa::ImageLayout::TRANSFER_DST_OPTIMAL,
-    //     /// TODO: Take the usage from the user for now images only used as attachments
-    //     .dst_layout = daxa::ImageLayout::ATTACHMENT_OPTIMAL,
-    //     .image_id = parsed_data.dst_image
-    // });
-
-    // daxa::ExecutableCommandList command_list = recorder.complete_current_commands();
-    // _device.submit_commands({.command_lists = {&command_list, 1}});
-    // _device.wait_idle();
-    // return parsed_data.dst_image;
-    return {};
 }
 
 auto AssetProcessor::load_texture(Scene & scene, u32 texture_manifest_index) -> AssetLoadResultCode
@@ -517,6 +473,10 @@ auto AssetProcessor::load_texture(Scene & scene, u32 texture_manifest_index) -> 
 }
 
 /// NOTE: Overload ElementTraits for glm vec3 for fastgltf to understand the type.
+template <>
+struct fastgltf::ElementTraits<glm::vec4> : fastgltf::ElementTraitsBase<float, fastgltf::AccessorType::Vec4>
+{
+};
 template <>
 struct fastgltf::ElementTraits<glm::vec3> : fastgltf::ElementTraitsBase<float, fastgltf::AccessorType::Vec3>
 {
@@ -675,23 +635,76 @@ auto AssetProcessor::load_mesh(Scene & scene, u32 mesh_manifest_index) -> AssetP
     std::vector<glm::vec2> vert_texcoord0 = std::get<std::vector<glm::vec2>>(std::move(vertex_texcoord0_pos_result));
     DBG_ASSERT_TRUE_M(vert_texcoord0.size() == vert_positions.size(), "[AssetProcessor::load_mesh()] Mismatched position and uv count");
 #pragma endregion
+#pragma region Tangents
+    auto tangent_attrib_iter = gltf_prim.findAttribute(VERT_ATTRIB_TANGENT_NAME);
+    if (tangent_attrib_iter == gltf_prim.attributes.end())
+    {
+        return AssetProcessor::AssetLoadResultCode::ERROR_MISSING_VERTEX_TANGENT;
+    }
+    fastgltf::Accessor & gltf_vertex_tangent_accessor = gltf_asset.accessors.at(tangent_attrib_iter->second);
+    bool const gltf_vertex_tangent_accessor_valid =
+        gltf_vertex_tangent_accessor.componentType == fastgltf::ComponentType::Float &&
+        gltf_vertex_tangent_accessor.type == fastgltf::AccessorType::Vec4;
+    if (!gltf_vertex_tangent_accessor_valid)
+    {
+        return AssetProcessor::AssetLoadResultCode::ERROR_FAULTY_GLTF_VERTEX_TANGENT;
+    }
+    auto vertex_tangent_pos_result = load_accessor_data_from_file<glm::vec4, false>(std::filesystem::path{gltf_scene.path}.remove_filename(), gltf_asset, gltf_vertex_tangent_accessor);
+    if (auto const * err = std::get_if<AssetProcessor::AssetLoadResultCode>(&vertex_tangent_pos_result))
+    {
+        return *err;
+    }
+    std::vector<glm::vec4> vert_tangent = std::get<std::vector<glm::vec4>>(std::move(vertex_tangent_pos_result));
+    DBG_ASSERT_TRUE_M(vert_tangent.size() == vert_positions.size(), "[AssetProcessor::load_mesh()] Mismatched position and uv count");
+#pragma endregion
+
+#pragma region Normals
+    auto normal_attrib_iter = gltf_prim.findAttribute(VERT_ATTRIB_NORMAL_NAME);
+    if (normal_attrib_iter == gltf_prim.attributes.end())
+    {
+        return AssetProcessor::AssetLoadResultCode::ERROR_MISSING_VERTEX_NORMAL;
+    }
+    fastgltf::Accessor & gltf_vertex_normal_accessor = gltf_asset.accessors.at(normal_attrib_iter->second);
+    bool const gltf_vertex_normal_accessor_valid =
+        gltf_vertex_normal_accessor.componentType == fastgltf::ComponentType::Float &&
+        gltf_vertex_normal_accessor.type == fastgltf::AccessorType::Vec3;
+    if (!gltf_vertex_normal_accessor_valid)
+    {
+        return AssetProcessor::AssetLoadResultCode::ERROR_FAULTY_GLTF_VERTEX_NORMAL;
+    }
+    auto vertex_normal_pos_result = load_accessor_data_from_file<glm::vec3, false>(std::filesystem::path{gltf_scene.path}.remove_filename(), gltf_asset, gltf_vertex_normal_accessor);
+    if (auto const * err = std::get_if<AssetProcessor::AssetLoadResultCode>(&vertex_normal_pos_result))
+    {
+        return *err;
+    }
+    std::vector<glm::vec3> vert_normals = std::get<std::vector<glm::vec3>>(std::move(vertex_normal_pos_result));
+    DBG_ASSERT_TRUE_M(vert_normals.size() == vert_positions.size(), "[AssetProcessor::load_mesh()] Mismatched normal and uv count");
+#pragma endregion
 
     u32 const positions_offset = positions.size();
     u32 const uvs_offset = uvs.size();
     u32 const indices_offset = indices.size();
+    u32 const tangents_offset = tangents.size();
+    u32 const normals_offset = normals.size();
 
     positions.reserve(positions.size() + vert_positions.size());
     uvs.reserve(uvs.size() + vert_texcoord0.size());
+    tangents.reserve(tangents.size() + vert_tangent.size());
+    normals.reserve(normals.size() + vert_normals.size());
     indices.reserve(indices.size() + index_buffer.size());
 
     positions.insert(positions.end(), vert_positions.begin(), vert_positions.end());
     uvs.insert(uvs.end(), vert_texcoord0.begin(), vert_texcoord0.end());
+    tangents.insert(tangents.end(), vert_tangent.begin(), vert_tangent.end());
+    normals.insert(normals.end(), vert_normals.begin(), vert_normals.end());
     indices.insert(indices.end(), index_buffer.begin(), index_buffer.end());
 
     mesh_data.cpu_runtime = MeshDescriptorCpu{
         .vertex_count = static_cast<u32>(vert_positions.size()),
         .positions_offset = positions_offset,
         .uvs_offset = uvs_offset,
+        .tangents_offset = tangents_offset,
+        .normals_offset = normals_offset,
         .index_count = static_cast<u32>(index_buffer.size()),
         .indices_offset = indices_offset,
     };
@@ -784,6 +797,7 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
         auto recorded_command_buffer = indices_command_buffer.get_recorded_command_buffer();
         _device->submit({.command_buffers = {&recorded_command_buffer, 1}});
         _device->destroy_buffer(indices_staging);
+        indices.clear();
         _device->wait_idle();
         _device->cleanup_resources();
     }
@@ -816,6 +830,7 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
         auto recorded_command_buffer = positions_command_buffer.get_recorded_command_buffer();
         _device->submit({.command_buffers = {&recorded_command_buffer, 1}});
         _device->destroy_buffer(positions_staging);
+        positions.clear();
         _device->wait_idle();
         _device->cleanup_resources();
     }
@@ -848,6 +863,71 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
         auto recorded_command_buffer = uvs_command_buffer.get_recorded_command_buffer();
         _device->submit({.command_buffers = {&recorded_command_buffer, 1}});
         _device->destroy_buffer(uvs_staging);
+        uvs.clear();
+        _device->wait_idle();
+        _device->cleanup_resources();
+    }
+    {
+        auto tangents_command_buffer = ff::CommandBuffer(_device);
+        tangents_command_buffer.begin();
+        scene._gpu_mesh_tangents = _device->create_buffer({
+            .size = tangents.size() * sizeof(f32vec4),
+            .flags = {},
+            .name = "gpu_mesh_tangents",
+        });
+
+        auto tangents_staging = _device->create_buffer({
+            .size = tangents.size() * sizeof(f32vec4),
+            .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+            .name = "gpu_mesh_tangents staging",
+        });
+
+        void * staging_ptr = _device->get_buffer_host_pointer(tangents_staging);
+        std::memcpy(staging_ptr, tangents.data(), sizeof(f32vec4) * tangents.size());
+        tangents_command_buffer.cmd_copy_buffer_to_buffer({
+            .src_buffer = tangents_staging,
+            .src_offset = 0,
+            .dst_buffer = scene._gpu_mesh_tangents,
+            .dst_offset = 0,
+            .size = static_cast<u32>(sizeof(f32vec4) * tangents.size()),
+        });
+        tangents_command_buffer.end();
+        auto recorded_command_buffer = tangents_command_buffer.get_recorded_command_buffer();
+        _device->submit({.command_buffers = {&recorded_command_buffer, 1}});
+        _device->destroy_buffer(tangents_staging);
+        tangents.clear();
+        _device->wait_idle();
+        _device->cleanup_resources();
+    }
+    {
+        auto normals_command_buffer = ff::CommandBuffer(_device);
+        normals_command_buffer.begin();
+        scene._gpu_mesh_normals = _device->create_buffer({
+            .size = normals.size() * sizeof(f32vec3),
+            .flags = {},
+            .name = "gpu_mesh_normals",
+        });
+
+        auto normals_staging = _device->create_buffer({
+            .size = normals.size() * sizeof(f32vec3),
+            .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+            .name = "gpu_mesh_normals staging",
+        });
+
+        void * staging_ptr = _device->get_buffer_host_pointer(normals_staging);
+        std::memcpy(staging_ptr, normals.data(), sizeof(f32vec3) * normals.size());
+        normals_command_buffer.cmd_copy_buffer_to_buffer({
+            .src_buffer = normals_staging,
+            .src_offset = 0,
+            .dst_buffer = scene._gpu_mesh_normals,
+            .dst_offset = 0,
+            .size = static_cast<u32>(sizeof(f32vec3) * normals.size()),
+        });
+        normals_command_buffer.end();
+        auto recorded_command_buffer = normals_command_buffer.get_recorded_command_buffer();
+        _device->submit({.command_buffers = {&recorded_command_buffer, 1}});
+        _device->destroy_buffer(normals_staging);
+        normals.clear();
         _device->wait_idle();
         _device->cleanup_resources();
     }
@@ -866,6 +946,8 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
                 .transforms_offset = mesh.cpu_runtime->transforms_offset,
                 .positions_offset = mesh.cpu_runtime->positions_offset,
                 .uvs_offset = mesh.cpu_runtime->uvs_offset,
+                .tangents_offset = mesh.cpu_runtime->tangents_offset,
+                .normals_offset = mesh.cpu_runtime->normals_offset,
                 .indices_offset = mesh.cpu_runtime->indices_offset,
                 .material_index = mesh.material_manifest_index.value_or(0),
             });
@@ -1042,18 +1124,23 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
         auto const & texture_manifest = _upload_texture_queue.at(0).scene->_material_texture_manifest;
         auto const & material_manifest = _upload_texture_queue.at(0).scene->_material_manifest;
         MaterialManifestEntry const & material = material_manifest.at(dirty_material_entry_indices.at(dirty_materials_index));
-        ff::ImageId diffuse_id = {};
-        ff::ImageId normal_id = {};
+
         if (material.diffuse_tex_index.has_value())
         {
-            diffuse_id = texture_manifest.at(material.diffuse_tex_index.value()).runtime.value();
+            staging_origin_ptr[dirty_materials_index].albedo_index = texture_manifest.at(material.diffuse_tex_index.value()).runtime.value().index;
+        }
+        else
+        {
+            staging_origin_ptr[dirty_materials_index].albedo_index = -1;
         }
         if (material.normal_tex_index.has_value())
         {
-            normal_id = texture_manifest.at(material.normal_tex_index.value()).runtime.value();
+            staging_origin_ptr[dirty_materials_index].normal_index = texture_manifest.at(material.normal_tex_index.value()).runtime.value().index;
         }
-        staging_origin_ptr[dirty_materials_index].albedo_index = diffuse_id.index;
-        staging_origin_ptr[dirty_materials_index].normal_index = normal_id.index;
+        else
+        {
+            staging_origin_ptr[dirty_materials_index].normal_index = -1;
+        }
 
         upload_manifest_command_buffer.cmd_copy_buffer_to_buffer({
             .src_buffer = materials_update_staging_buffer,
@@ -1094,6 +1181,8 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
             .transforms_start = _device->get_buffer_device_address(scene._gpu_mesh_transforms),
             .positions_start = _device->get_buffer_device_address(scene._gpu_mesh_positions),
             .uvs_start = _device->get_buffer_device_address(scene._gpu_mesh_uvs),
+            .normals_start = _device->get_buffer_device_address(scene._gpu_mesh_normals),
+            .tangents_start = _device->get_buffer_device_address(scene._gpu_mesh_tangents),
             .indices_start = _device->get_buffer_device_address(scene._gpu_mesh_indices),
         };
         scene_descriptor_command_buffer.cmd_copy_buffer_to_buffer({

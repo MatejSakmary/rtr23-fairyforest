@@ -47,10 +47,14 @@ struct AssetProcessor
         ERROR_FAULTY_GLTF_VERTEX_POSITIONS,
         ERROR_MISSING_VERTEX_TEXCOORD_0,
         ERROR_FAULTY_GLTF_VERTEX_TEXCOORD_0,
+        ERROR_MISSING_VERTEX_NORMAL,
+        ERROR_FAULTY_GLTF_VERTEX_NORMAL,
+        ERROR_MISSING_VERTEX_TANGENT,
+        ERROR_FAULTY_GLTF_VERTEX_TANGENT,
     };
     static auto to_string(AssetLoadResultCode code) -> std::string_view
     {
-        switch(code)
+        switch (code)
         {
             case AssetLoadResultCode::SUCCESS:                                          return "SUCCESS";
             case AssetLoadResultCode::ERROR_MISSING_INDEX_BUFFER:                       return "ERROR_MISSING_INDEX_BUFFER";
@@ -70,34 +74,38 @@ struct AssetProcessor
             case AssetLoadResultCode::ERROR_FAULTY_GLTF_VERTEX_POSITIONS:               return "ERROR_FAULTY_GLTF_VERTEX_POSITIONS";
             case AssetLoadResultCode::ERROR_MISSING_VERTEX_TEXCOORD_0:                  return "ERROR_MISSING_VERTEX_TEXCOORD_0";
             case AssetLoadResultCode::ERROR_FAULTY_GLTF_VERTEX_TEXCOORD_0:              return "ERROR_FAULTY_GLTF_VERTEX_TEXCOORD_0";
-            default: return "UNKNOWN";
+            case AssetLoadResultCode::ERROR_MISSING_VERTEX_NORMAL:                      return "ERROR_MISSING_VERTEX_NORMAL";
+            case AssetLoadResultCode::ERROR_FAULTY_GLTF_VERTEX_NORMAL:                  return "ERROR_FAULTY_GLTF_VERTEX_NORMAL";
+            case AssetLoadResultCode::ERROR_MISSING_VERTEX_TANGENT:                     return "ERROR_MISSING_VERTEX_TANGENT";
+            case AssetLoadResultCode::ERROR_FAULTY_GLTF_VERTEX_TANGENT:                 return "ERROR_FAULTY_GLTF_VERTEX_TANGENT";
+            default:                                                                    return "UNKNOWN";
         }
     }
     AssetProcessor(std::shared_ptr<ff::Device> device);
     AssetProcessor(AssetProcessor &&) = default;
     ~AssetProcessor();
 
-    using NonmanifestLoadRet = std::variant<AssetProcessor::AssetLoadResultCode, ff::ImageId>;
-    auto load_nonmanifest_texture(std::filesystem::path const & filepath) -> NonmanifestLoadRet;
+    auto load_texture(Scene & scene, u32 texture_manifest_index) -> AssetLoadResultCode;
+    auto load_mesh_group(Scene & scene, u32 mesh_group_manifest_index) -> AssetLoadResultCode;
 
-    auto load_texture(Scene &scene, u32 texture_manifest_index) -> AssetLoadResultCode;
-    auto load_mesh_group(Scene &scene, u32 mesh_group_manifest_index) -> AssetLoadResultCode;
-
-    auto load_all(Scene& scene) -> AssetLoadResultCode;
+    auto load_all(Scene & scene) -> AssetLoadResultCode;
 
     void record_gpu_load_processing_commands(Scene & scene);
 
-private:
+  private:
     std::vector<u32> indices = {};
     std::vector<f32vec3> positions = {};
     std::vector<f32vec2> uvs = {};
-    static inline const std::string VERT_ATTRIB_POSITION_NAME = "POSITION";
-    static inline const std::string VERT_ATTRIB_NORMAL_NAME = "NORMAL";
-    static inline const std::string VERT_ATTRIB_TEXCOORD0_NAME = "TEXCOORD_0";
+    std::vector<f32vec4> tangents = {};
+    std::vector<f32vec3> normals = {};
+    static inline std::string const VERT_ATTRIB_POSITION_NAME = "POSITION";
+    static inline std::string const VERT_ATTRIB_NORMAL_NAME = "NORMAL";
+    static inline std::string const VERT_ATTRIB_TEXCOORD0_NAME = "TEXCOORD_0";
+    static inline std::string const VERT_ATTRIB_TANGENT_NAME = "TANGENT";
 
     struct TextureUpload
     {
-        Scene *scene = {};
+        Scene * scene = {};
         ff::BufferId staging_buffer = {};
         ff::ImageId dst_image = {};
         u32 texture_manifest_index = {};
@@ -106,7 +114,7 @@ private:
     struct MeshUpload
     {
         // TODO: replace with buffer offset into staging memory.
-        Scene *scene = {};
+        Scene * scene = {};
         ff::BufferId staging_buffer = {};
         u32 mesh_manifest_index = {};
     };

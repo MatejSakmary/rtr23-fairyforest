@@ -10,7 +10,7 @@
 #include "../shared/scene.inl"
 #include "../backend/slotmap.hpp"
 using namespace ff::types;
-#define MAX_MESHES_PER_MESHGROUP 20
+#define MAX_MESHES_PER_MESHGROUP 30
 
 struct TextureManifestEntry
 {
@@ -46,6 +46,8 @@ struct MeshDescriptorCpu
     u32 vertex_count = {};
     u32 positions_offset = {};
     u32 uvs_offset = {};
+    u32 tangents_offset = {};
+    u32 normals_offset = {};
     u32 index_count = {};
     u32 indices_offset = {};
     u32 transforms_offset = {};
@@ -127,6 +129,8 @@ struct Scene
     ff::BufferId _gpu_materials = {};
     ff::BufferId _gpu_mesh_transforms = {};
     ff::BufferId _gpu_mesh_positions = {};
+    ff::BufferId _gpu_mesh_tangents = {};
+    ff::BufferId _gpu_mesh_normals = {};
     ff::BufferId _gpu_mesh_uvs = {};
     ff::BufferId _gpu_mesh_indices = {};
 

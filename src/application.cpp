@@ -128,7 +128,9 @@ Application::Application()
     std::filesystem::path const DEFAULT_ROOT_PATH = ".\\assets";
     // std::filesystem::path const DEFAULT_SCENE_PATH = "medieval_battle\\medieval_battle_gltf\\medieval_battle.gltf";
     // std::filesystem::path const DEFAULT_SCENE_PATH = "instanced_cubes\\instanced_cubes.gltf";
-    std::filesystem::path const DEFAULT_SCENE_PATH = "forest\\forest.gltf";
+    // std::filesystem::path const DEFAULT_SCENE_PATH = "forest\\forest.gltf";
+    std::filesystem::path const DEFAULT_SCENE_PATH = "forest_scaled\\forest_scaled.gltf";
+    // std::filesystem::path const DEFAULT_SCENE_PATH = "new_sponza\\NewSponza_Main_glTF_002.gltf";
 
     auto const result = scene->load_manifest_from_gltf(DEFAULT_ROOT_PATH, DEFAULT_SCENE_PATH);
     if (Scene::LoadManifestErrorCode const * err = std::get_if<Scene::LoadManifestErrorCode>(&result))
@@ -175,7 +177,7 @@ auto Application::run() -> i32
         if (window->window_state->resized) { renderer->resize(); }
         update();
 
-        renderer->draw_frame(commands, camera_controller.cam_info);
+        renderer->draw_frame(commands, camera_controller.cam_info, delta_time);
         keep_running &= !static_cast<bool>(glfwWindowShouldClose(window->glfw_handle));
     }
     return 0;

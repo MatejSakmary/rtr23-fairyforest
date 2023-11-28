@@ -47,9 +47,10 @@ namespace ff
         });
     }
 
-    void Renderer::draw_frame(SceneDrawCommands const & draw_commands, CameraInfo const & camera_info)
+    void Renderer::draw_frame(SceneDrawCommands const & draw_commands, CameraInfo const & camera_info, f32 delta_time)
     {
         PreciseStopwatch stopwatch = {};
+        static f32 accum = 0.0f;
         auto swapchain_image = context->swapchain->acquire_next_image();
         u32 const fif_index = frame_index % (FRAMES_IN_FLIGHT + 1);
 
@@ -86,7 +87,7 @@ namespace ff
                 .layout = VkImageLayout::VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
                 .load_op = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR,
                 .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE,
-                .clear_value = {.color = {.float32 = {0.02f, 0.02f, 0.02f, 1.0f}}},
+                .clear_value = {.color = {.float32 = {0.002f, 0.002f, 0.002f, 1.0f}}},
             }},
             .depth_attachment = RenderingAttachmentInfo{
                 .image_id = depth_buffer,
@@ -105,6 +106,10 @@ namespace ff
                 .view_proj = camera_info.viewproj,
                 .mesh_index = draw_command.mesh_idx,
                 .sampler_id = repeat_sampler.index,
+                .sun_direction = glm::normalize(f32vec3(
+                    std::cos(f32(accum) / 5.0f),
+                    std::sin(f32(accum) / 5.0f),
+                    1.0f))
             });
             command_buffer.cmd_draw({
                 .vertex_count = draw_command.index_count,
@@ -143,8 +148,9 @@ namespace ff
         context->swapchain->present({.wait_semaphores = {&present_semaphore, 1}});
         context->device->cleanup_resources();
         u32 elapsed_time = stopwatch.elapsed_time<unsigned int, std::chrono::microseconds>();
-        fmt::println("CPU frame time {}us FPS {}", elapsed_time, 1.0f / (elapsed_time * 0.000'001f));
+        // fmt::println("CPU frame time {}us FPS {}", elapsed_time, 1.0f / (elapsed_time * 0.000'001f));
         frame_index += 1;
+        accum += delta_time;
     }
 
     Renderer::~Renderer()

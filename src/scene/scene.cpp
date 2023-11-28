@@ -16,6 +16,8 @@ Scene::~Scene()
     _device->destroy_buffer(_gpu_mesh_transforms);
     _device->destroy_buffer(_gpu_mesh_positions);
     _device->destroy_buffer(_gpu_mesh_uvs);
+    _device->destroy_buffer(_gpu_mesh_tangents);
+    _device->destroy_buffer(_gpu_mesh_normals);
     _device->destroy_buffer(_gpu_mesh_indices);
     _device->destroy_buffer(_gpu_mesh_descriptors);
     _device->destroy_buffer(_gpu_scene_descriptor);
