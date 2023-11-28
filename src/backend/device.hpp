@@ -45,6 +45,12 @@ namespace ff
         BufferId buffer_id = {};
         u64 cpu_timeline_value = {};
     };
+
+    struct SamplerZombie
+    {
+        SamplerId sampler_id = {};
+        u64 cpu_timeline_value = {};
+    };
     struct Device
     {
       public:
@@ -62,8 +68,10 @@ namespace ff
 
         auto create_buffer(CreateBufferInfo const & info) -> BufferId;
         auto create_image(CreateImageInfo const & info) -> ImageId;
+        auto create_sampler(CreateSamplerInfo const & info) -> SamplerId;
         void destroy_buffer(BufferId id);
         void destroy_image(ImageId id);
+        void destroy_sampler(SamplerId id);
 
         void submit(SubmitInfo const & info);
         void cleanup_resources();
@@ -95,6 +103,7 @@ namespace ff
         std::queue<BufferZombie> buffer_zombies = {};
         std::queue<CommandBufferZombie> command_buffer_zombies = {};
         std::queue<PipelineZombie> pipeline_zombies = {};
+        std::queue<SamplerZombie> sampler_zombies = {};
 
         i32 main_queue_family_index = {};
         u64 main_cpu_timeline_value = {};

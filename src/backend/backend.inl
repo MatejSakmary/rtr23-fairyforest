@@ -60,6 +60,27 @@
 #define VkDeviceAddress u64
 
 #define BUFFER_REF(ALIGN) layout(buffer_reference, scalar, buffer_reference_align = ALIGN) buffer
+
+#define STORAGE_IMAGE_LAYOUT layout(binding = STORAGE_IMAGE_BINDING, set = 0)
+#define SAMPLED_IMAGE_LAYOUT layout(binding = SAMPLED_IMAGE_BINDING, set = 0)
+#define SAMPLER_LAYOUT layout(binding = SAMPLER_BINDING, set = 0)
+
+#define _IMAGE(DIMENSION)                                                          \
+    STORAGE_IMAGE_LAYOUT uniform image##DIMENSION image##DIMENSION##Table[];       \
+    STORAGE_IMAGE_LAYOUT uniform iimage##DIMENSION iimage##DIMENSION##Table[];     \
+    STORAGE_IMAGE_LAYOUT uniform uimage##DIMENSION uimage##DIMENSION##Table[];     \
+    SAMPLED_IMAGE_LAYOUT uniform texture##DIMENSION texture##DIMENSION##Table[];   \
+    SAMPLED_IMAGE_LAYOUT uniform itexture##DIMENSION itexture##DIMENSION##Table[]; \
+    SAMPLED_IMAGE_LAYOUT uniform utexture##DIMENSION utexture##DIMENSION##Table[];
+
+_IMAGE(1D)
+_IMAGE(2D)
+_IMAGE(3D)
+_IMAGE(1DArray)
+_IMAGE(2DArray)
+
+SAMPLER_LAYOUT uniform sampler samplerTable[];
+
 #else
 #pragma once
 #include "backend.hpp"

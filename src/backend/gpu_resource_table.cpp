@@ -189,6 +189,31 @@ namespace ff
         BACKEND_LOG("[INFO][GpuResourceTable::GpuResourceTable()] Pipeline layouts creation successful");
     }
 
+    void GpuResourceTable::write_descriptor_set_sampler(SamplerId id)
+    {
+        auto const * sampler = samplers.slot(id);
+        VkDescriptorImageInfo const descriptor_image_info = {
+            .sampler = sampler->sampler,
+            .imageView = VK_NULL_HANDLE,
+            .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        };
+
+        VkWriteDescriptorSet const write_descriptor_set_storage = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .pNext = nullptr,
+            .dstSet = descriptor_set,
+            .dstBinding = SAMPLER_BINDING,
+            .dstArrayElement = id.index,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+            .pImageInfo = &descriptor_image_info,
+            .pBufferInfo = nullptr,
+            .pTexelBufferView = nullptr,
+        };
+
+        vkUpdateDescriptorSets(vulkan_device, 1, &write_descriptor_set_storage, 0, nullptr);
+    }
+
     void GpuResourceTable::write_descriptor_set_image(ImageId id)
     {
         auto const * image = images.slot(id);
@@ -270,11 +295,6 @@ namespace ff
         };
 
         vkUpdateDescriptorSets(vulkan_device, 1, &vk_write_descriptor_set, 0, nullptr);
-    }
-
-    void GpuResourceTable::write_descriptor_set_sampler(SamplerId id)
-    {
-        /// TODO: (msakmary) Implement
     }
 
     GpuResourceTable::~GpuResourceTable()

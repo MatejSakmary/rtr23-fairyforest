@@ -43,6 +43,27 @@ namespace ff
         std::string name = {};
     };
 
+	struct CreateSamplerInfo
+	{
+    	VkFilter magnification_filter = VkFilter::VK_FILTER_LINEAR;
+    	VkFilter minification_filter = VkFilter::VK_FILTER_LINEAR;
+    	VkSamplerMipmapMode mipmap_filter = VkSamplerMipmapMode::VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    	VkSamplerReductionMode reduction_mode = VkSamplerReductionMode::VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE;
+    	VkSamplerAddressMode address_mode_u = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    	VkSamplerAddressMode address_mode_v = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    	VkSamplerAddressMode address_mode_w = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    	f32 mip_lod_bias = 0.5f;
+    	bool enable_anisotropy = false;
+    	f32 max_anisotropy = 0.0f;
+    	bool enable_compare = false;
+    	VkCompareOp compare_op = VkCompareOp::VK_COMPARE_OP_ALWAYS;
+    	f32 min_lod = 0.0f;
+    	f32 max_lod = 1000.0f;
+    	VkBorderColor border_color = VkBorderColor::VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+    	bool enable_unnormalized_coordinates = 0;
+    	std::string name = {};
+	};
+
     struct Image
     {
       public:
@@ -72,9 +93,20 @@ namespace ff
         void * host_address = {};
     };
 
+    struct Sampler
+    {	
+		public:
+			CreateSamplerInfo sampler_info;
+		private:
+        	friend struct Device;
+        	friend struct GpuResourceTable;
+        	friend struct CommandBuffer;
+        	VkSampler sampler = {};
+    };
+
     using ImageId = SlotMap<Image>::Id;
     using BufferId = SlotMap<Buffer>::Id;
-    using SamplerId = SlotMap<VkSampler>::Id;
+    using SamplerId = SlotMap<Sampler>::Id;
 
     struct CreateGpuResourceTableInfo
     {
@@ -100,7 +132,7 @@ namespace ff
       public:
         SlotMap<Image> images = {};
         SlotMap<Buffer> buffers = {};
-        SlotMap<VkSampler> samplers = {};
+        SlotMap<Sampler> samplers = {};
 
         GpuResourceTable(CreateGpuResourceTableInfo const & info);
         void write_descriptor_set_image(ImageId id);

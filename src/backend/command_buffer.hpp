@@ -17,6 +17,20 @@ namespace ff
         u32 size = {};
     };
 
+    struct CopyBufferToImageInfo
+    {
+        BufferId buffer_id = {};
+        size_t buffer_offset = {};
+        ImageId image_id = {};
+        VkImageLayout image_layout = {};
+        u32 base_mip_level = 0;
+        u32 base_array_layer = 0;
+        u32 layer_count = 1;
+        VkImageAspectFlags aspect_mask = {};
+        VkOffset3D image_offset = {};
+        VkExtent3D image_extent = {};
+    };
+
     struct ImageMemoryBarrierTransitionInfo
     {
         VkPipelineStageFlags2 src_stages = {};
@@ -88,6 +102,7 @@ namespace ff
         void begin();
         void end();
         void cmd_copy_buffer_to_buffer(CopyBufferToBufferInfo const & info);
+        void cmd_copy_buffer_to_image(CopyBufferToImageInfo const & info);
         void cmd_image_memory_transition_barrier(ImageMemoryBarrierTransitionInfo const & info);
         void cmd_memory_barrier(MemoryBarrierInfo const & info);
         template <typename T>

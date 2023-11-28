@@ -19,6 +19,14 @@ Scene::~Scene()
     _device->destroy_buffer(_gpu_mesh_indices);
     _device->destroy_buffer(_gpu_mesh_descriptors);
     _device->destroy_buffer(_gpu_scene_descriptor);
+    _device->destroy_buffer(_gpu_material_descriptors);
+    for(auto & texture : _material_texture_manifest)
+    {
+        if(texture.runtime.has_value())
+        {
+            _device->destroy_image(texture.runtime.value());
+        }
+    };
 }
 
 // TODO: Loading god function.
@@ -27,11 +35,6 @@ auto Scene::load_manifest_from_gltf(std::filesystem::path const & root_path, std
 #pragma region SETUP
     auto file_path = root_path / glb_name;
 
-    std::array<fastgltf::Parser, 20> parsers;
-    for(i32 i = 0; i < 20; i++)
-    {
-        parsers.at(i) = fastgltf::Parser(static_cast<fastgltf::Extensions>(1 << i));
-    }
     fastgltf::Parser parser{};
 
     constexpr auto gltf_options =
@@ -50,19 +53,6 @@ auto Scene::load_manifest_from_gltf(std::filesystem::path const & root_path, std
     {
         case fastgltf::GltfType::glTF:
         {
-            for(i32 i = 0; i < 20; i++)
-            {
-                fastgltf::Expected<fastgltf::Asset> result = parsers.at(i).loadGLTF(&data, file_path.parent_path(), gltf_options);
-                if (result.error() != fastgltf::Error::None)
-                {
-                    APP_LOG(fmt::format("{}",static_cast<u32>(result.error())));
-                    // return LoadManifestErrorCode::COULD_NOT_LOAD_ASSET;
-                }
-                else
-                {
-                    APP_LOG(fmt::format("{}",static_cast<u32>(i)));
-                }
-            }
             fastgltf::Expected<fastgltf::Asset> result = parser.loadGLTF(&data, file_path.parent_path(), gltf_options);
             APP_LOG(fmt::format("{}",static_cast<u32>(result.error())));
             if (result.error() != fastgltf::Error::None)
@@ -144,7 +134,7 @@ auto Scene::load_manifest_from_gltf(std::filesystem::path const & root_path, std
         }
         if (has_normal_texture)
         {
-            u32 const texture_index = static_cast<u32>(material.pbrData.baseColorTexture.value().textureIndex);
+            u32 const texture_index = static_cast<u32>(material.normalTexture.value().textureIndex);
             normal_texture_index = gltf_texture_to_manifest_texture_index(texture_index);
             _material_texture_manifest.at(normal_texture_index.value()).material_manifest_indices.push_back({.normal = true, .material_manifest_index = material_manifest_index});
         }

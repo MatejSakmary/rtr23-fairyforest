@@ -128,7 +128,7 @@ Application::Application()
     std::filesystem::path const DEFAULT_ROOT_PATH = ".\\assets";
     // std::filesystem::path const DEFAULT_SCENE_PATH = "medieval_battle\\medieval_battle_gltf\\medieval_battle.gltf";
     // std::filesystem::path const DEFAULT_SCENE_PATH = "instanced_cubes\\instanced_cubes.gltf";
-    std::filesystem::path const DEFAULT_SCENE_PATH = "fairy_forest\\forest_landscape.gltf";
+    std::filesystem::path const DEFAULT_SCENE_PATH = "forest\\forest.gltf";
 
     auto const result = scene->load_manifest_from_gltf(DEFAULT_ROOT_PATH, DEFAULT_SCENE_PATH);
     if (Scene::LoadManifestErrorCode const * err = std::get_if<Scene::LoadManifestErrorCode>(&result))
@@ -153,7 +153,8 @@ Application::Application()
             glm::vec3(0.0f, 0.0f, 1.0f),
             glm::vec3(0.0f, 1.0f, 0.0f),
             glm::vec3(0.0f, 0.0f, 0.0f)
-        ) * 100'000'000.0f;
+        ) * 100.0f;
+        // ) * 100'000'000.0f;
         APP_LOG(fmt::format("[INFO]Application::Application()] Loading Scene Assets \"{}\" Success",
                             (DEFAULT_ROOT_PATH / DEFAULT_SCENE_PATH).string()));
     }

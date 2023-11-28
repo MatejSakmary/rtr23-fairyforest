@@ -158,6 +158,37 @@ namespace ff
         vkCmdCopyBuffer(buffer, src_buffer, dst_buffer, 1, &copy_info);
     }
 
+    void CommandBuffer::cmd_copy_buffer_to_image(CopyBufferToImageInfo const & info)
+    {
+
+        if (!device->resource_table->images.is_id_valid(info.image_id))
+        {
+            BACKEND_LOG("[ERROR][CommandBuffer::cmd_copy_buffer_to_image()] Received invalid image ID");
+            throw std::runtime_error("[ERROR][CommandBuffer::cmd_copy_buffer_to_image()] Received invalid image ID");
+        }
+        if (!device->resource_table->buffers.is_id_valid(info.buffer_id))
+        {
+            BACKEND_LOG("[ERROR][CommandBuffer::cmd_copy_buffer_to_image()] Received invalid buffer ID");
+            throw std::runtime_error("[ERROR][CommandBuffer::cmd_copy_buffer_to_image()] Received invalid buffer ID");
+        }
+        auto const & dst_image = device->resource_table->images.slot(info.image_id);
+        auto const & src_buffer = device->resource_table->buffers.slot(info.buffer_id);
+        VkBufferImageCopy const buffer_image_copy = {
+            .bufferOffset = info.buffer_offset,
+            .bufferRowLength = 0u,
+            .bufferImageHeight = 0u,
+            .imageSubresource = VkImageSubresourceLayers{
+                .aspectMask = info.aspect_mask,
+                .mipLevel = info.base_mip_level,
+                .baseArrayLayer = info.base_array_layer,
+                .layerCount = info.layer_count,
+            },
+            .imageOffset = info.image_offset,
+            .imageExtent = info.image_extent
+        };
+        vkCmdCopyBufferToImage(buffer, src_buffer->buffer, dst_image->image, info.image_layout, 1, &buffer_image_copy);
+    }
+
     void CommandBuffer::cmd_image_clear(ImageClearInfo const & info)
     {
         if (!device->resource_table->images.is_id_valid(info.image_id))

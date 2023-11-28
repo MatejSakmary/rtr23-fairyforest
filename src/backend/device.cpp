@@ -332,6 +332,7 @@ namespace ff
 
         ImageId const id = resource_table->images.create_slot();
         auto * image = resource_table->images.slot(id);
+        image->image_info = info;
 
         VkImageViewType image_view_type = {};
         if (info.array_layer_count > 1)
@@ -419,6 +420,51 @@ namespace ff
         CHECK_VK_RESULT(vkSetDebugUtilsObjectNameEXT(vulkan_device, &image_view_name_info));
 
         resource_table->write_descriptor_set_image(id);
+        return id;
+    }
+    auto Device::create_sampler(CreateSamplerInfo const & info) -> SamplerId
+    {
+        SamplerId const id = resource_table->samplers.create_slot();
+        auto * sampler = resource_table->samplers.slot(id);
+        sampler->sampler_info = info;
+
+        VkSamplerReductionModeCreateInfo sampler_reduction_mode_create_info = {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO,
+            .pNext = nullptr,
+            .reductionMode = info.reduction_mode,
+        };
+
+        VkSamplerCreateInfo const sampler_create_info = {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .pNext = &sampler_reduction_mode_create_info,
+            .flags = {},
+            .magFilter = info.magnification_filter,
+            .minFilter = info.minification_filter,
+            .mipmapMode = info.mipmap_filter,
+            .addressModeU = info.address_mode_u,
+            .addressModeV = info.address_mode_v,
+            .addressModeW = info.address_mode_w,
+            .mipLodBias = info.mip_lod_bias,
+            .anisotropyEnable = info.enable_anisotropy,
+            .maxAnisotropy = info.max_anisotropy,
+            .compareEnable = info.enable_compare,
+            .compareOp = info.compare_op,
+            .minLod = info.min_lod,
+            .maxLod = info.max_lod,
+            .borderColor = info.border_color,
+            .unnormalizedCoordinates = info.enable_unnormalized_coordinates,
+        };
+
+        CHECK_VK_RESULT(vkCreateSampler(vulkan_device, &sampler_create_info, nullptr, &sampler->sampler));
+        VkDebugUtilsObjectNameInfoEXT const sampler_name_info = {
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .pNext = nullptr,
+            .objectType = VK_OBJECT_TYPE_SAMPLER,
+            .objectHandle = std::bit_cast<uint64_t>(sampler->sampler),
+            .pObjectName = info.name.c_str(),
+        };
+        CHECK_VK_RESULT(vkSetDebugUtilsObjectNameEXT(vulkan_device, &sampler_name_info));
+        resource_table->write_descriptor_set_sampler(id);
         return id;
     }
 
@@ -618,6 +664,19 @@ namespace ff
         });
     }
 
+    void Device::destroy_sampler(SamplerId id)
+    {
+        if (!resource_table->samplers.is_id_valid(id))
+        {
+            BACKEND_LOG(fmt::format("[ERROR][Device::destroy_sampler()] Attempting to destroy invalid sampler"));
+            throw std::runtime_error("[ERROR][Device::destroy_sampler()] Attempting to destroy invalid sampler");
+        }
+        sampler_zombies.push({
+            .sampler_id = id,
+            .cpu_timeline_value = main_cpu_timeline_value,
+        });
+    }
+
     void Device::cleanup_resources()
     {
         u64 gpu_timeline_value = {};
@@ -668,6 +727,19 @@ namespace ff
             vmaDestroyImage(allocator, image->image, image->allocation);
             resource_table->images.destroy_slot(image_zombie.image_id);
             image_zombies.pop();
+        }
+
+        while (!sampler_zombies.empty())
+        {
+            if (sampler_zombies.front().cpu_timeline_value > gpu_timeline_value)
+            {
+                break;
+            }
+            auto const sampler_zombie = sampler_zombies.front();
+            Sampler * sampler = resource_table->samplers.slot(sampler_zombie.sampler_id);
+            vkDestroySampler(vulkan_device, sampler->sampler, nullptr);
+            resource_table->samplers.destroy_slot(sampler_zombie.sampler_id);
+            sampler_zombies.pop();
         }
     }
 

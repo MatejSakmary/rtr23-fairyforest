@@ -1,9 +1,9 @@
 #pragma once
+#include <GLFW/glfw3.h>
 
 #include "fairy_forest.hpp"
 using namespace ff::types;
 
-#include <GLFW/glfw3.h>
 
 struct WindowState
 {

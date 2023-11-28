@@ -363,9 +363,12 @@ static auto free_image_parse_raw_image_data(RawImageData && raw_data, std::share
     };
     ParsedImageData ret = {};
     u32 const total_image_byte_size = width * height * rounded_channel_count * channel_info.byte_size;
-    ret.src_buffer = device->create_buffer({.size = total_image_byte_size,
-                                            .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
-                                            .name = raw_data.image_path.filename().string() + " staging"});
+    FreeImage_FlipVertical(modified_bitmap);
+    ret.src_buffer = device->create_buffer({
+        .size = total_image_byte_size,
+        .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+        .name = raw_data.image_path.filename().string() + " staging",
+    });
     std::byte * staging_dst_ptr = reinterpret_cast<std::byte *>(device->get_buffer_host_pointer(ret.src_buffer));
     memcpy(staging_dst_ptr, reinterpret_cast<std::byte *>(FreeImage_GetBits(modified_bitmap)), total_image_byte_size);
 
@@ -380,9 +383,10 @@ static auto free_image_parse_raw_image_data(RawImageData && raw_data, std::share
         /// TODO: Potentially take more flags from the user here
         .usage =
             VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-            VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT |
-            VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT,
+            VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT,
+        // VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT,
         .alloc_flags = {},
+        .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
         .name = raw_data.image_path.filename().string(),
     });
     return ret;
@@ -863,7 +867,7 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
                 .positions_offset = mesh.cpu_runtime->positions_offset,
                 .uvs_offset = mesh.cpu_runtime->uvs_offset,
                 .indices_offset = mesh.cpu_runtime->indices_offset,
-                .material_index = 0,
+                .material_index = mesh.material_manifest_index.value_or(0),
             });
         }
         transforms.insert(transforms.end(), meshgroup.instance_transforms.begin(), meshgroup.instance_transforms.end());
@@ -930,24 +934,163 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
         _device->wait_idle();
         _device->cleanup_resources();
     }
+
+#pragma endregion
+
+#pragma region RECORD_TEXTURE_UPLOAD_COMMANDS
+    auto upload_textures_command_buffer = ff::CommandBuffer(_device);
+    upload_textures_command_buffer.begin();
+    for (TextureUpload const & texture_upload : _upload_texture_queue)
+    {
+        texture_upload.scene->_material_texture_manifest.at(texture_upload.texture_manifest_index).runtime = texture_upload.dst_image;
+        /// TODO: If we are generating mips this will need to change
+        upload_textures_command_buffer.cmd_image_memory_transition_barrier({
+            .src_stages = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
+            .src_access = VK_ACCESS_2_NONE_KHR,
+            .dst_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+            .dst_access = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+            .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED,
+            .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+            .image_id = texture_upload.dst_image,
+        });
+    }
+    for (TextureUpload const & texture_upload : _upload_texture_queue)
+    {
+        auto const image_extent = _device->info_image(texture_upload.dst_image).extent;
+        upload_textures_command_buffer.cmd_copy_buffer_to_image({
+            .buffer_id = texture_upload.staging_buffer,
+            .image_id = texture_upload.dst_image,
+            .image_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+            .image_offset = {0, 0, 0},
+            .image_extent = _device->info_image(texture_upload.dst_image).extent,
+        });
+    }
+    for (TextureUpload const & texture_upload : _upload_texture_queue)
+    {
+        upload_textures_command_buffer.cmd_image_memory_transition_barrier({
+            .src_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+            .src_access = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+            .dst_stages = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+            .dst_access = VK_ACCESS_2_NONE,
+            .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+            .image_id = texture_upload.dst_image,
+        });
+    }
+    upload_textures_command_buffer.end();
+    auto recorded_command_buffer = upload_textures_command_buffer.get_recorded_command_buffer();
+    _device->submit({.command_buffers = {&recorded_command_buffer, 1}});
+    for (TextureUpload const & texture_upload : _upload_texture_queue)
+    {
+        _device->destroy_buffer(texture_upload.staging_buffer);
+    }
+    _device->wait_idle();
+    _device->cleanup_resources();
+#pragma endregion
+#pragma region RECORD_MATERIAL_UPLOAD_COMMANDS
+    /// NOTE: We need to propagate each loaded texture image ID into the material manifest This will be done in two steps:
+    //        1) We update the CPU manifest with the correct values and remember the materials that were updated
+    //        2) For each dirty material we generate a copy buffer to buffer comand to update the GPU manifest
+    std::vector<u32> dirty_material_entry_indices = {};
+    // 1) Update CPU Manifest
+    for (TextureUpload const & texture_upload : _upload_texture_queue)
+    {
+        auto const & texture_manifest = texture_upload.scene->_material_texture_manifest;
+        auto & material_manifest = texture_upload.scene->_material_manifest;
+        TextureManifestEntry const & texture_manifest_entry = texture_manifest.at(texture_upload.texture_manifest_index);
+        for (auto const material_using_texture_info : texture_manifest_entry.material_manifest_indices)
+        {
+            MaterialManifestEntry & material_entry = material_manifest.at(material_using_texture_info.material_manifest_index);
+            if (material_using_texture_info.diffuse)
+            {
+                material_entry.diffuse_tex_index = texture_upload.texture_manifest_index;
+            }
+            if (material_using_texture_info.normal)
+            {
+                material_entry.normal_tex_index = texture_upload.texture_manifest_index;
+            }
+            /// NOTE: Add material index only if it was not added previously
+            if (std::find(
+                    dirty_material_entry_indices.begin(),
+                    dirty_material_entry_indices.end(),
+                    material_using_texture_info.material_manifest_index) ==
+                dirty_material_entry_indices.end())
+            {
+                dirty_material_entry_indices.push_back(material_using_texture_info.material_manifest_index);
+            }
+        }
+    }
+    // 2) Update GPU manifest
+    scene._gpu_material_descriptors = _device->create_buffer({
+        .size = scene._material_manifest.size() * sizeof(MaterialDescriptor),
+        .flags = {},
+        .name = "gpu_materials_descriptor",
+    });
+    auto upload_manifest_command_buffer = ff::CommandBuffer(_device);
+    upload_manifest_command_buffer.begin();
+    auto const materials_update_staging_buffer = _device->create_buffer({
+        .size = sizeof(MaterialDescriptor) * dirty_material_entry_indices.size(),
+        .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+        .name = "gpu materials update",
+    });
+    MaterialDescriptor * const staging_origin_ptr = reinterpret_cast<MaterialDescriptor *>(_device->get_buffer_host_pointer(materials_update_staging_buffer));
+    for (u32 dirty_materials_index = 0; dirty_materials_index < dirty_material_entry_indices.size(); dirty_materials_index++)
+    {
+        auto const & texture_manifest = _upload_texture_queue.at(0).scene->_material_texture_manifest;
+        auto const & material_manifest = _upload_texture_queue.at(0).scene->_material_manifest;
+        MaterialManifestEntry const & material = material_manifest.at(dirty_material_entry_indices.at(dirty_materials_index));
+        ff::ImageId diffuse_id = {};
+        ff::ImageId normal_id = {};
+        if (material.diffuse_tex_index.has_value())
+        {
+            diffuse_id = texture_manifest.at(material.diffuse_tex_index.value()).runtime.value();
+        }
+        if (material.normal_tex_index.has_value())
+        {
+            normal_id = texture_manifest.at(material.normal_tex_index.value()).runtime.value();
+        }
+        staging_origin_ptr[dirty_materials_index].albedo_index = diffuse_id.index;
+        staging_origin_ptr[dirty_materials_index].normal_index = normal_id.index;
+
+        upload_manifest_command_buffer.cmd_copy_buffer_to_buffer({
+            .src_buffer = materials_update_staging_buffer,
+            .src_offset = static_cast<u32>(sizeof(MaterialDescriptor) * dirty_materials_index),
+            .dst_buffer = scene._gpu_material_descriptors,
+            .dst_offset = static_cast<u32>(sizeof(MaterialDescriptor) * dirty_material_entry_indices.at(dirty_materials_index)),
+            .size = sizeof(MaterialDescriptor),
+        });
+    }
+    {
+        upload_manifest_command_buffer.end();
+        auto recorded_command_buffer = upload_manifest_command_buffer.get_recorded_command_buffer();
+        _device->submit({.command_buffers = {&recorded_command_buffer, 1}});
+        _device->destroy_buffer(materials_update_staging_buffer);
+        _device->wait_idle();
+        _device->cleanup_resources();
+    }
+    _upload_texture_queue.clear();
+#pragma endregion
+#pragma region RECORD_SCENE_DESCRIPTOR_UPLOAD_COMMANDS
     {
         auto scene_descriptor_command_buffer = ff::CommandBuffer(_device);
         scene_descriptor_command_buffer.begin();
         scene._gpu_scene_descriptor = _device->create_buffer({
             .size = sizeof(SceneDescriptor),
             .flags = {},
-            .name = "gpu_scene_descriptor"
+            .name = "gpu_scene_descriptor",
         });
         auto scene_descriptor_staging = _device->create_buffer({
             .size = sizeof(SceneDescriptor),
             .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
-            .name = "gpu_scene_descriptor staging"
+            .name = "gpu_scene_descriptor staging",
         });
-        SceneDescriptor * staging_ptr = reinterpret_cast<SceneDescriptor*>(_device->get_buffer_host_pointer(scene_descriptor_staging));
+        SceneDescriptor * staging_ptr = reinterpret_cast<SceneDescriptor *>(_device->get_buffer_host_pointer(scene_descriptor_staging));
         *staging_ptr = {
             .mesh_descriptors_start = _device->get_buffer_device_address(scene._gpu_mesh_descriptors),
-            /// TODO: Fill this in order for materials to work
-            .material_descriptors_start = {},
+            .material_descriptors_start = _device->get_buffer_device_address(scene._gpu_material_descriptors),
             .transforms_start = _device->get_buffer_device_address(scene._gpu_mesh_transforms),
             .positions_start = _device->get_buffer_device_address(scene._gpu_mesh_positions),
             .uvs_start = _device->get_buffer_device_address(scene._gpu_mesh_uvs),
@@ -967,127 +1110,25 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
         _device->wait_idle();
         _device->cleanup_resources();
     }
-
 #pragma endregion
-
-    // #pragma region RECORD_TEXTURE_UPLOAD_COMMANDS
-    //     for (TextureUpload const & texture_upload : _upload_texture_queue)
-    //     {
-    //         texture_upload.scene->_material_texture_manifest.at(texture_upload.texture_manifest_index).runtime = texture_upload.dst_image;
-    //         /// TODO: If we are generating mips this will need to change
-    //         recorder.pipeline_barrier_image_transition({.dst_access = daxa::AccessConsts::TRANSFER_WRITE,
-    //                                                     .dst_layout = daxa::ImageLayout::TRANSFER_DST_OPTIMAL,
-    //                                                     .image_id = texture_upload.dst_image});
-    //     }
-    //     for (TextureUpload const & texture_upload : _upload_texture_queue)
-    //     {
-    //         recorder.copy_buffer_to_image({.buffer = texture_upload.staging_buffer,
-    //                                        .image = texture_upload.dst_image,
-    //                                        .image_offset = {0, 0, 0},
-    //                                        .image_extent = _device.info_image(texture_upload.dst_image).value().size});
-    //         recorder.destroy_buffer_deferred(texture_upload.staging_buffer);
-    //     }
-    //     for (TextureUpload const & texture_upload : _upload_texture_queue)
-    //     {
-    //         recorder.pipeline_barrier_image_transition({.src_access = daxa::AccessConsts::TRANSFER_WRITE,
-    //                                                     .dst_access = daxa::AccessConsts::TOP_OF_PIPE_READ_WRITE,
-    //                                                     .src_layout = daxa::ImageLayout::TRANSFER_DST_OPTIMAL,
-    //                                                     .dst_layout = daxa::ImageLayout::READ_ONLY_OPTIMAL,
-    //                                                     .image_id = texture_upload.dst_image});
-    //     }
-    // #pragma endregion
-    // #pragma region RECORD_MATERIAL_UPLOAD_COMMANDS
-    //     /// NOTE: We need to propagate each loaded texture image ID into the material manifest This will be done in two steps:
-    //     //        1) We update the CPU manifest with the correct values and remember the materials that were updated
-    //     //        2) For each dirty material we generate a copy buffer to buffer comand to update the GPU manifest
-    //     std::vector<u32> dirty_material_entry_indices = {};
-    //     // 1) Update CPU Manifest
-    //     for (TextureUpload const & texture_upload : _upload_texture_queue)
-    //     {
-    //         auto const & texture_manifest = texture_upload.scene->_material_texture_manifest;
-    //         auto & material_manifest = texture_upload.scene->_material_manifest;
-    //         TextureManifestEntry const & texture_manifest_entry = texture_manifest.at(texture_upload.texture_manifest_index);
-    //         for (auto const material_using_texture_info : texture_manifest_entry.material_manifest_indices)
-    //         {
-    //             MaterialManifestEntry & material_entry = material_manifest.at(material_using_texture_info.material_manifest_index);
-    //             if (material_using_texture_info.diffuse)
-    //             {
-    //                 material_entry.diffuse_tex_index = texture_upload.texture_manifest_index;
-    //             }
-    //             if (material_using_texture_info.normal)
-    //             {
-    //                 material_entry.normal_tex_index = texture_upload.texture_manifest_index;
-    //             }
-    //             /// NOTE: Add material index only if it was not added previously
-    //             if (std::find(
-    //                     dirty_material_entry_indices.begin(),
-    //                     dirty_material_entry_indices.end(),
-    //                     material_using_texture_info.material_manifest_index) ==
-    //                 dirty_material_entry_indices.end())
-    //             {
-    //                 dirty_material_entry_indices.push_back(material_using_texture_info.material_manifest_index);
-    //             }
-    //         }
-    //     }
-    //     // 2) Update GPU manifest
-    //     auto const materials_update_staging_buffer = _device.create_buffer({
-    //         .size = sizeof(GPUMaterial) * dirty_material_entry_indices.size(),
-    //         .allocate_info = daxa::MemoryFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE,
-    //         .name = "gpu materials update",
-    //     });
-    //     recorder.destroy_buffer_deferred(materials_update_staging_buffer);
-    //     GPUMaterial * const staging_origin_ptr = _device.get_host_address_as<GPUMaterial>(materials_update_staging_buffer).value();
-    //     for (u32 dirty_materials_index = 0; dirty_materials_index < dirty_material_entry_indices.size(); dirty_materials_index++)
-    //     {
-    //         auto const & texture_manifest = _upload_texture_queue.at(0).scene->_material_texture_manifest;
-    //         auto const & material_manifest = _upload_texture_queue.at(0).scene->_material_manifest;
-    //         MaterialManifestEntry const & material = material_manifest.at(dirty_material_entry_indices.at(dirty_materials_index));
-    //         daxa::ImageId diffuse_id = {};
-    //         daxa::ImageId normal_id = {};
-    //         if (material.diffuse_tex_index.has_value())
-    //         {
-    //             diffuse_id = texture_manifest.at(material.diffuse_tex_index.value()).runtime.value();
-    //         }
-    //         if (material.normal_tex_index.has_value())
-    //         {
-    //             normal_id = texture_manifest.at(material.normal_tex_index.value()).runtime.value();
-    //         }
-    //         staging_origin_ptr[dirty_materials_index].diffuse_texture_id = diffuse_id.default_view();
-    //         staging_origin_ptr[dirty_materials_index].normal_texture_id = normal_id.default_view();
-
-    //         daxa::BufferId gpu_material_manifest = _upload_texture_queue.at(0).scene->_gpu_material_manifest.get_state().buffers[0];
-    //         recorder.copy_buffer_to_buffer({
-    //             .src_buffer = materials_update_staging_buffer,
-    //             .dst_buffer = gpu_material_manifest,
-    //             .src_offset = sizeof(GPUMaterial) * dirty_materials_index,
-    //             .dst_offset = sizeof(GPUMaterial) * dirty_material_entry_indices.at(dirty_materials_index),
-    //             .size = sizeof(GPUMaterial),
-    //         });
-    //     }
-    //     recorder.pipeline_barrier({
-    //         .src_access = daxa::AccessConsts::TRANSFER_WRITE,
-    //         .dst_access = daxa::AccessConsts::READ,
-    //     });
-    //     _upload_texture_queue.clear();
-    // #pragma endregion
 }
 
 auto AssetProcessor::load_all(Scene & scene) -> AssetProcessor::AssetLoadResultCode
 {
-    // std::optional<AssetProcessor::AssetLoadResultCode> err = {};
-    // for (u32 i = 0; i < scene._material_texture_manifest.size(); ++i)
-    // {
-    //     if (!scene._material_texture_manifest.at(i).runtime.has_value())
-    //     {
-    //         auto result = load_texture(scene, i);
-    //         if (result != AssetProcessor::AssetLoadResultCode::SUCCESS && !err.has_value())
-    //         {
-    //             err = result;
-    //         }
-    //     }
-    // }
+    std::optional<AssetProcessor::AssetLoadResultCode> err = {};
+    for (u32 i = 0; i < scene._material_texture_manifest.size(); ++i)
+    {
+        APP_LOG(fmt::format("[INFO][AssetProcessor::load_all] Loading texture {}", scene._material_texture_manifest.at(i).name));
+        auto result = load_texture(scene, i);
+        if (result != AssetProcessor::AssetLoadResultCode::SUCCESS)
+        {
+            APP_LOG("[ERROR][Scene::Scene()] Error loading texture");
+            throw std::runtime_error("[ERROR][Scene::Scene()] Error loading texture");
+        }
+    }
     for (u32 i = 0; i < scene._mesh_group_manifest.size(); ++i)
     {
+        APP_LOG(fmt::format("[INFO][AssetProcessor::load_all] Loading meshgroup {} of {}", i, scene._mesh_group_manifest.size()));
         auto result = load_mesh_group(scene, i);
         if (result != AssetProcessor::AssetLoadResultCode::SUCCESS)
         {

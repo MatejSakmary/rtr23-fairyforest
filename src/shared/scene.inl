@@ -34,4 +34,5 @@ struct DrawPc
     VkDeviceAddress scene_descriptor;
     f32mat4x4 view_proj;
     u32 mesh_index;
+    u32 sampler_id;
 };

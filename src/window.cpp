@@ -82,8 +82,8 @@ Window::Window(i32 width, i32 height, std::string_view name)
 /// NOTE: This makes the borders of the window dark mode on win 10 and 11
 #if defined(_WIN32)
     {
-        auto hwnd = reinterpret_cast<HWND>(glfw_handle);
-        bool value = true;
+        auto hwnd = static_cast<HWND>(get_handle());
+        BOOL value = true;
         DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &value, sizeof(value));
         auto is_windows11_or_greater = []() -> bool
         {

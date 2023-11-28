@@ -28,6 +28,7 @@ namespace ff
         std::shared_ptr<Context> context = {};
         Pipeline triangle_pipeline = {};
         u32 frame_index = {};
+        SamplerId repeat_sampler = {};
         ImageId depth_buffer = {};
     };
 } // namespace ff

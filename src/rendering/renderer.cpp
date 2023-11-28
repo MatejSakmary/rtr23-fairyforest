@@ -26,6 +26,11 @@ namespace ff
             .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT,
             .name = "depth buffer",
         });
+        repeat_sampler = context->device->create_sampler({
+            .address_mode_u = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .address_mode_v = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .name = "repeat sampler",
+        });
     }
 
     void Renderer::resize()
@@ -98,7 +103,9 @@ namespace ff
             command_buffer.cmd_set_push_constant(DrawPc{
                 .scene_descriptor = draw_commands.scene_descriptor,
                 .view_proj = camera_info.viewproj,
-                .mesh_index = draw_command.mesh_idx});
+                .mesh_index = draw_command.mesh_idx,
+                .sampler_id = repeat_sampler.index,
+            });
             command_buffer.cmd_draw({
                 .vertex_count = draw_command.index_count,
                 .instance_count = draw_command.instance_count,
@@ -143,5 +150,6 @@ namespace ff
     Renderer::~Renderer()
     {
         context->device->destroy_image(depth_buffer);
+        context->device->destroy_sampler(repeat_sampler);
     }
 } // namespace ff
