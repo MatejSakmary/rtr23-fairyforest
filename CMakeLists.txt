@@ -50,6 +50,7 @@ add_executable(${PROJECT_NAME}
     "src/application.cpp"
     "src/window.cpp"
     "src/context.cpp"
+    "src/camera.cpp"
     "src/backend/device.cpp"
     "src/backend/instance.cpp"
     "src/backend/features.cpp"
