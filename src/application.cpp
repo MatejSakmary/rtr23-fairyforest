@@ -15,9 +15,27 @@ Application::Application()
             .start_rotation =       {0.20892, -0.176558, 0.62084, 0.7346},
             .end_rotation =         {0.20892, -0.176558, 0.62084, 0.7346},
             .start_position =       {0.0, 1.0, 10.0},
-            .first_control_point =  {0.0, 1.0, 20.0},
-            .second_control_point = {0.0, 1.0, 30.0},
+            .first_control_point =  {-300.0, 1.0, 20.0},
+            .second_control_point = {-400.0, 300.0, 30.0},
             .end_position =         {0.0, 1.0, 40.0},
+            .transition_time = 3.0f
+        },
+        AnimationKeyframe{
+            .start_rotation =       {0.20892, -0.176558, 0.62084, 0.7346},
+            .end_rotation =         {0.74034554, -0.6245334, -0.16035266, -0.19008811},
+            .start_position =       {0.0, 1.0, 40.0},
+            .first_control_point =  {159.04951, -218.05574, 63.40108},
+            .second_control_point = {159.04951, -218.05574, 63.40108},
+            .end_position =         {159.04951, -218.05574, 63.40108},
+            .transition_time = 3.0f
+        },
+        AnimationKeyframe{
+            .start_rotation =       {0.74034554, -0.6245334, -0.16035266, -0.19008811},
+            .end_rotation =         {0.20892, -0.176558, 0.62084, 0.7346},
+            .start_position =       {159.04951, -218.05574, 63.40108},
+            .first_control_point =  {100.0, 1.0, 50.0},
+            .second_control_point = {100.0, 200.0, 45.0},
+            .end_position =         {0.0, 1.0, 10.0},
             .transition_time = 3.0f
         },
     };
