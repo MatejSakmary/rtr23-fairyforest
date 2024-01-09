@@ -141,7 +141,8 @@ namespace ff
         ~GpuResourceTable();
 
       private:
-        friend struct Pipeline;
+        friend struct RasterPipeline;
+        friend struct ComputePipeline;
         friend struct CommandBuffer;
         CreateGpuResourceTableInfo info = {};
         std::array<VkPipelineLayout, PIPELINE_LAYOUT_COUNT> pipeline_layouts = {};

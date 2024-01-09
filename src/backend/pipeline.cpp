@@ -3,7 +3,7 @@
 
 namespace ff
 {
-    Pipeline::Pipeline(PipelineCreateInfo const & info) : device{info.device}
+    RasterPipeline::RasterPipeline(RasterPipelineCreateInfo const & info) : device{info.device}
     {
         std::vector<VkShaderModule> shader_modules = {};
         std::vector<std::string> entry_point_names = {};
@@ -231,9 +231,87 @@ namespace ff
         BACKEND_LOG(fmt::format("[INFO][Pipeline::Pipeline()] Pipeline {} creation successful", info.name))
     }
 
-    Pipeline::~Pipeline()
+    RasterPipeline::~RasterPipeline()
     {
         if (pipeline != VK_NULL_HANDLE)
+        {
+            device->pipeline_zombies.push({
+                .pipeline = pipeline,
+                .cpu_timeline_value = device->main_cpu_timeline_value,
+            });
+        }
+    }
+
+    ComputePipeline::ComputePipeline(ComputePipelineCreateInfo const & info) : device{info.device}
+    {
+        auto read_spirv_from_file = [](std::filesystem::path filepath) -> std::vector<u32>
+        {
+            std::ifstream ifs{filepath, std::ios::binary};
+            if (!ifs)
+            {
+                BACKEND_LOG(fmt::format("[ERROR][Pipeline::Pipeline()] Shader spirv path invalid {}", filepath.string()));
+                throw std::runtime_error("[ERROR][Pipeline::Pipeline()] Shader spirv path invalid");
+            }
+            ifs.seekg(0, ifs.end);
+            const i32 filesize = ifs.tellg();
+            ifs.seekg(0, ifs.beg);
+            std::vector<u32> raw(filesize / 4);
+            if (!ifs.read(reinterpret_cast<char *>(raw.data()), filesize))
+            {
+                BACKEND_LOG(fmt::format("[ERROR][Pipeline::Pipeline()] Failed to read entire shader spirv"));
+                throw std::runtime_error("[ERROR][Pipeline::Pipeline()] Failed to read entire shader spirv");
+            }
+            return raw;
+        };
+        auto const spirv = read_spirv_from_file(info.comp_spirv_path);
+        VkShaderModule shader_module = nullptr;
+        VkShaderModuleCreateInfo const shader_module_create_info{
+            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = {},
+            .codeSize = static_cast<u32>(spirv.size() * sizeof(u32)),
+            .pCode = spirv.data(),
+        };
+        CHECK_VK_RESULT(vkCreateShaderModule(device->vulkan_device, &shader_module_create_info, nullptr, &shader_module));
+        VkPipelineShaderStageCreateInfo const vk_pipeline_shader_stage_create_info{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = {},
+            .stage = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT,
+            .module = shader_module,
+            .pName = info.entry_point.c_str(),
+            .pSpecializationInfo = nullptr,
+        };
+        layout = device->resource_table->pipeline_layouts.at((info.push_constant_size + 3) / 4);
+
+        VkComputePipelineCreateInfo const compute_pipeline_create_info{
+            .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = {},
+            .stage = vk_pipeline_shader_stage_create_info,
+            .layout = layout,
+            .basePipelineHandle = VK_NULL_HANDLE,
+            .basePipelineIndex = 0,
+        };
+
+        CHECK_VK_RESULT(vkCreateComputePipelines(device->vulkan_device, VK_NULL_HANDLE, 1u, &compute_pipeline_create_info, nullptr, &pipeline));
+        vkDestroyShaderModule(device->vulkan_device, shader_module, nullptr);
+        {
+            VkDebugUtilsObjectNameInfoEXT const name_info{
+                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+                .pNext = nullptr,
+                .objectType = VK_OBJECT_TYPE_PIPELINE,
+                .objectHandle = std::bit_cast<u64>(pipeline),
+                .pObjectName = info.name.c_str(),
+            };
+            CHECK_VK_RESULT(device->vkSetDebugUtilsObjectNameEXT(device->vulkan_device, &name_info));
+        }
+        BACKEND_LOG(fmt::format("[INFO][Pipeline::Pipeline()] Pipeline {} creation successful", info.name));
+    }
+
+    ComputePipeline::~ComputePipeline()
+    {
+        if(pipeline != VK_NULL_HANDLE)
         {
             device->pipeline_zombies.push({
                 .pipeline = pipeline,

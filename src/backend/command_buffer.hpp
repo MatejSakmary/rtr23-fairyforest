@@ -92,6 +92,13 @@ namespace ff
         u32 first_vertex = 0;
         u32 first_instance = 0;
     };
+
+    struct DispatchInfo
+    {
+        u32 x = 0;
+        u32 y = 0;
+        u32 z = 0;
+    };
     struct CommandBuffer
     {
       public:
@@ -108,8 +115,10 @@ namespace ff
         template <typename T>
         void cmd_set_push_constant(T const & push_constant) { cmd_set_push_constant_internal(&push_constant, sizeof(T)); };
         void cmd_image_clear(ImageClearInfo const & info);
-        void cmd_set_raster_pipeline(Pipeline const & pipeline);
+        void cmd_set_raster_pipeline(RasterPipeline const & pipeline);
+        void cmd_set_compute_pipeline(ComputePipeline const & pipeline);
         void cmd_draw(DrawInfo const & info);
+        void cmd_dispatch(DispatchInfo const & info);
         void cmd_begin_renderpass(BeginRenderpassInfo const & info);
         void cmd_end_renderpass();
         auto get_recorded_command_buffer() -> VkCommandBuffer;

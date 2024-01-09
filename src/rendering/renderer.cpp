@@ -4,7 +4,7 @@ namespace ff
 {
     Renderer::Renderer(std::shared_ptr<Context> context)
         : context{context},
-          triangle_pipeline({PipelineCreateInfo{
+          triangle_pipeline({RasterPipelineCreateInfo{
               .device = context->device,
               .vert_spirv_path = ".\\src\\shaders\\bin\\mesh_draw.vert.spv",
               .frag_spirv_path = ".\\src\\shaders\\bin\\mesh_draw.frag.spv",
@@ -16,9 +16,21 @@ namespace ff
               },
               .entry_point = "main",
               .push_constant_size = sizeof(DrawPc),
-              .name = "mesh draw pipeline"}})
+              .name = "mesh draw pipeline",
+          }}),
+          compute_test_pipeline({ComputePipelineCreateInfo{
+              .device = context->device,
+              .comp_spirv_path = ".\\src\\shaders\\bin\\test.comp.spv",
+              .entry_point = "main",
+              .push_constant_size = sizeof(ComputeTestPC),
+              .name = "compute test pipeline",
+          }})
     {
         auto const swapchain_extent = context->swapchain->surface_extent;
+        compute_test_buffer = context->device->create_buffer({
+            .size = sizeof(ComputeTestBuffer) * COMPUTE_TEST_X_THREADS,
+            .name = "compute shader test buffer"
+        });
         depth_buffer = context->device->create_image({
             .format = VkFormat::VK_FORMAT_D32_SFLOAT,
             .extent = {swapchain_extent.width, swapchain_extent.height, 1},
@@ -56,7 +68,13 @@ namespace ff
 
         auto command_buffer = CommandBuffer(context->device);
         command_buffer.begin();
-
+        // ============ COMPUTE TEST ==============================================
+        command_buffer.cmd_set_compute_pipeline(compute_test_pipeline);
+        command_buffer.cmd_set_push_constant(ComputeTestPC{
+            .compute_test_buffer = context->device->get_buffer_device_address(compute_test_buffer)
+        });
+        command_buffer.cmd_dispatch({.x = COMPUTE_TEST_X_THREADS, .y = 1, .z = 1});
+        //=================================================================
         command_buffer.cmd_image_memory_transition_barrier({
             .src_stages = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
             .src_access = VK_ACCESS_2_NONE_KHR,
@@ -109,8 +127,7 @@ namespace ff
                 .sun_direction = glm::normalize(f32vec3(
                     std::cos(f32(accum) / 5.0f),
                     std::sin(f32(accum) / 5.0f),
-                    1.0f))
-            });
+                    1.0f))});
             command_buffer.cmd_draw({
                 .vertex_count = draw_command.index_count,
                 .instance_count = draw_command.instance_count,
@@ -155,6 +172,7 @@ namespace ff
 
     Renderer::~Renderer()
     {
+        context->device->destroy_buffer(compute_test_buffer);
         context->device->destroy_image(depth_buffer);
         context->device->destroy_sampler(repeat_sampler);
     }

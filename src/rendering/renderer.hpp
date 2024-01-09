@@ -26,7 +26,9 @@ namespace ff
 
       private:
         std::shared_ptr<Context> context = {};
-        Pipeline triangle_pipeline = {};
+        RasterPipeline triangle_pipeline = {};
+        ComputePipeline compute_test_pipeline = {};
+		BufferId compute_test_buffer = {};
         u32 frame_index = {};
         SamplerId repeat_sampler = {};
         ImageId depth_buffer = {};

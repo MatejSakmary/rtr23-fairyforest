@@ -49,7 +49,7 @@ namespace ff
         f32 max_depth_bounds = 1.0f;
     };
 
-    struct PipelineCreateInfo
+    struct RasterPipelineCreateInfo
     {
         std::shared_ptr<Device> device = {};
         /// TODO: add other stages here - if needed
@@ -64,16 +64,44 @@ namespace ff
     };
 
     /// TODO: I do raster pipeline ONLY for now add compute pipeline
-    struct Pipeline
+    struct RasterPipeline
     {
       public:
-        Pipeline() = default;
-        Pipeline(PipelineCreateInfo const & info);
-        Pipeline(Pipeline const & other) = delete;
-        Pipeline & operator=(Pipeline const & other) = delete;
-        Pipeline(Pipeline && other) = delete;
-        Pipeline & operator=(Pipeline && other) = delete;
-        ~Pipeline();
+        RasterPipeline() = default;
+        RasterPipeline(RasterPipelineCreateInfo const & info);
+        RasterPipeline(RasterPipeline const & other) = delete;
+        RasterPipeline & operator=(RasterPipeline const & other) = delete;
+        RasterPipeline(RasterPipeline && other) = delete;
+        RasterPipeline & operator=(RasterPipeline && other) = delete;
+        ~RasterPipeline();
+
+      private:
+        friend struct CommandBuffer;
+
+        std::shared_ptr<Device> device = {};
+        VkPipelineLayout layout = {};
+        VkPipeline pipeline = {};
+    };
+
+    struct ComputePipelineCreateInfo
+    {
+        std::shared_ptr<Device> device = {};
+        std::filesystem::path comp_spirv_path = {};
+        std::string entry_point = {};
+        u32 push_constant_size = {};
+        std::string name = {};
+    };
+
+    struct ComputePipeline
+    {
+      public:
+        ComputePipeline() = default;
+        ComputePipeline(ComputePipelineCreateInfo const & info);
+        ComputePipeline(ComputePipeline const & other) = delete;
+        ComputePipeline & operator=(ComputePipeline const & other) = delete;
+        ComputePipeline(ComputePipeline && other) = delete;
+        ComputePipeline & operator=(ComputePipeline && other) = delete;
+        ~ComputePipeline();
 
       private:
         friend struct CommandBuffer;

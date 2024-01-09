@@ -36,8 +36,13 @@ set (GLSL_FRAG_SOURCE_FILES
     "src/shaders/mesh_draw.frag"
 )
 
+set (GLSL_COMP_SOURCE_FILES
+    "src/shaders/test.comp"
+)
+
 compile_glsl("${GLSL_VERT_SOURCE_FILES}" "vert")
 compile_glsl("${GLSL_FRAG_SOURCE_FILES}" "frag")
+compile_glsl("${GLSL_COMP_SOURCE_FILES}" "comp")
 
 add_custom_command(
     OUTPUT shaders.txt 

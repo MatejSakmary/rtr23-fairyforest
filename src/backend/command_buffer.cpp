@@ -219,10 +219,21 @@ namespace ff
         return buffer;
     }
 
-    void CommandBuffer::cmd_set_raster_pipeline(Pipeline const & pipeline)
+    void CommandBuffer::cmd_set_raster_pipeline(RasterPipeline const & pipeline)
     {
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.layout, 0, 1, &device->resource_table->descriptor_set, 0, nullptr);
         vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.pipeline);
+    }
+
+    void CommandBuffer::cmd_set_compute_pipeline(ComputePipeline const & pipeline)
+    {
+        vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.layout, 0, 1, &device->resource_table->descriptor_set, 0, nullptr);
+        vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.pipeline);
+    }
+
+    void CommandBuffer::cmd_dispatch(DispatchInfo const & info)
+    {
+        vkCmdDispatch(buffer, info.x, info.y, info.z);
     }
 
     void CommandBuffer::cmd_draw(DrawInfo const & info)
