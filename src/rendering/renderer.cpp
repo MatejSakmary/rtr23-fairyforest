@@ -113,6 +113,10 @@ namespace ff
 
         void * staging_ptr = context->device->get_buffer_host_pointer(ssao_kernel_staging);
         std::memcpy(staging_ptr, ssao_kernel.data(), sizeof(SSAOKernel) * SSAO_KERNEL_SAMPLE_COUNT);
+
+        buffers.camera_info = context->device->create_buffer({.size = sizeof(CameraInfoBuf) * FRAMES_IN_FLIGHT,
+                                                              .name = "camera info buffer"});
+
         resource_update_command_buffer.begin();
         resource_update_command_buffer.cmd_copy_buffer_to_buffer({
             .src_buffer = ssao_kernel_staging,
@@ -144,12 +148,43 @@ namespace ff
         PreciseStopwatch stopwatch = {};
         static f32 accum = 0.0f;
         auto swapchain_image = context->swapchain->acquire_next_image();
-        u32 const fif_index = frame_index % (FRAMES_IN_FLIGHT + 1);
+        u32 const fif_index = frame_index % (FRAMES_IN_FLIGHT);
 
         auto command_buffer = CommandBuffer(context->device);
         auto const & swapchain_extent = context->device->info_image(swapchain_image).extent;
 
+        auto camera_info_staging_buffer = context->device->create_buffer({
+            .size = sizeof(CameraInfoBuf),
+            .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+            .name = "camera info staging",
+        });
+        void * staging_memory = context->device->get_buffer_host_pointer(camera_info_staging_buffer);
+        CameraInfoBuf curr_frame_camera = {
+            .view = camera_info.view,
+            .inverse_view = glm::inverse(camera_info.view),
+            .projection = camera_info.proj,
+            .inverse_projection = glm::inverse(camera_info.proj),
+            .view_projection = camera_info.viewproj,
+            .inverse_view_projection = glm::inverse(camera_info.viewproj),
+        };
+        std::memcpy(staging_memory, &curr_frame_camera, sizeof(CameraInfoBuf));
         command_buffer.begin();
+        // COPY CAMERA INFO
+        {
+            command_buffer.cmd_copy_buffer_to_buffer({
+                .src_buffer = camera_info_staging_buffer,
+                .src_offset = 0,
+                .dst_buffer = buffers.camera_info,
+                .dst_offset = static_cast<u32>(sizeof(CameraInfoBuf) * fif_index),
+                .size = static_cast<u32>(sizeof(CameraInfoBuf)),
+            });
+            command_buffer.cmd_memory_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                .src_access = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                .dst_stages = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                .dst_access = VK_ACCESS_2_SHADER_READ_BIT,
+            });
+        }
         // swapchain_image      UNDEFINED -> COLOR_ATTACHMENT_OPTIMAL
         // ss_normals           UNDEFINED -> COLOR_ATTACHMENT_OPTIMAL
         // ambient_occlusion    UNDEFINED -> GENERAL
@@ -224,7 +259,9 @@ namespace ff
             {
                 command_buffer.cmd_set_push_constant(DrawPc{
                     .scene_descriptor = draw_commands.scene_descriptor,
-                    .view_proj = camera_info.viewproj,
+                    .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
+                    .ss_normals_index = images.ss_normals.index,
+                    .fif_index = fif_index,
                     .mesh_index = draw_command.mesh_idx,
                     .sampler_id = repeat_sampler.index,
                     .sun_direction = glm::normalize(f32vec3(
@@ -332,7 +369,9 @@ namespace ff
             {
                 command_buffer.cmd_set_push_constant(DrawPc{
                     .scene_descriptor = draw_commands.scene_descriptor,
-                    .view_proj = camera_info.viewproj,
+                    .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
+                    .ss_normals_index = images.ss_normals.index,
+                    .fif_index = fif_index,
                     .mesh_index = draw_command.mesh_idx,
                     .sampler_id = repeat_sampler.index,
                     .sun_direction = glm::normalize(f32vec3(
@@ -377,6 +416,7 @@ namespace ff
             .signal_timeline_semaphores = {&swapchain_timeline_semaphore_info, 1},
         });
 
+        context->device->destroy_buffer(camera_info_staging_buffer);
         context->swapchain->present({.wait_semaphores = {&present_semaphore, 1}});
         context->device->cleanup_resources();
         u32 elapsed_time = stopwatch.elapsed_time<unsigned int, std::chrono::microseconds>();
@@ -387,6 +427,7 @@ namespace ff
 
     Renderer::~Renderer()
     {
+        context->device->destroy_buffer(buffers.camera_info);
         context->device->destroy_buffer(buffers.ssao_kernel);
         context->device->destroy_image(images.depth);
         context->device->destroy_image(images.ambient_occlusion);

@@ -32,6 +32,7 @@ namespace ff
 	struct Buffers
 	{
         BufferId ssao_kernel = {};
+		BufferId camera_info = {};
 	};
     struct Renderer
     {

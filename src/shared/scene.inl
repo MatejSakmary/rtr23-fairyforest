@@ -35,10 +35,23 @@ MeshDescriptor
     u32 material_index;
 };
 
+BUFFER_REF(4)
+CameraInfoBuf
+{
+    f32mat4x4 view;
+    f32mat4x4 inverse_view;
+    f32mat4x4 projection;
+    f32mat4x4 inverse_projection;
+    f32mat4x4 view_projection;
+    f32mat4x4 inverse_view_projection;
+};
+
 struct DrawPc
 {
     VkDeviceAddress scene_descriptor;
-    f32mat4x4 view_proj;
+    VkDeviceAddress camera_info;
+    u32 ss_normals_index;
+    u32 fif_index;
     u32 mesh_index;
     u32 sampler_id;
     f32vec3 sun_direction;

@@ -120,6 +120,7 @@ CinematicCamera::CinematicCamera(std::vector<AnimationKeyframe> const & keyframe
         ret[3][2] = z_near;
         return ret;
     };
+    // TODO(msakmary) Change aspect on window resize (currently stays set to the inital value)
     glm::mat4 prespective = inf_depth_reverse_z_perspective(glm::radians(70.0f), f32(window.get_width()) / f32(window.get_height()), near_plane);
     prespective[1][1] *= -1.0f;
     info.proj = prespective;

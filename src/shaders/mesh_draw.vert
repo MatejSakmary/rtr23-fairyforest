@@ -8,14 +8,9 @@ layout(buffer_reference, scalar, buffer_reference_align = 4) buffer Transform { 
 layout(buffer_reference, scalar, buffer_reference_align = 4) buffer Index     { u32 idx;          };
 layout(buffer_reference, scalar, buffer_reference_align = 4) buffer Position  { f32vec3 position; };
 layout(buffer_reference, scalar, buffer_reference_align = 4) buffer UV        { f32vec2 uv;       };
-layout(buffer_reference, scalar, buffer_reference_align = 4) buffer Tangent   { f32vec4 tangent;  };
-layout(buffer_reference, scalar, buffer_reference_align = 4) buffer Normal    { f32vec3 normal;  };
 
 layout(location = 0) out f32vec2 out_uv;
-layout(location = 1) out f32vec4 out_tangent;
-layout(location = 2) out f32vec3 out_normal;
-layout(location = 3) out flat u32 albedo_index;
-layout(location = 4) out flat u32 normals_index;
+layout(location = 1) out flat u32 albedo_index;
 
 mat4 mat_4x3_to_4x4(mat4x3 in_mat)
 {
@@ -41,14 +36,9 @@ void main()
 
     const f32vec3 position = (Position(scene_descriptor.positions_start)[mesh_descriptor.positions_offset + vert_index]).position;
     const f32vec2 uv = (UV(scene_descriptor.uvs_start)[mesh_descriptor.uvs_offset + vert_index]).uv;
-    const f32vec4 tangent = (Tangent(scene_descriptor.tangents_start)[mesh_descriptor.tangents_offset + vert_index]).tangent;
-    const f32vec3 normal = (Normal(scene_descriptor.normals_start)[mesh_descriptor.normals_offset + vert_index]).normal;
 
     albedo_index = material_descriptor.albedo_index;
-    normals_index = material_descriptor.normal_index;
     out_uv = uv;
-    out_tangent = f32vec4(normalize((mat_4x3_to_4x4(transform) * f32vec4(tangent.xyz, 0.0)).xyz), tangent.w);
-    out_normal = normalize((mat_4x3_to_4x4(transform) * f32vec4(normal.xyz, 0.0)).xyz);
-
-    gl_Position = data.view_proj * mat_4x3_to_4x4(transform) * f32vec4(position, 1.0);
+    f32mat4x4 view_projection = (CameraInfoBuf(data.camera_info)[data.fif_index]).view_projection;
+    gl_Position = view_projection * mat_4x3_to_4x4(transform) * f32vec4(position, 1.0);
 }
