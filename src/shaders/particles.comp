@@ -4,10 +4,12 @@
 
 layout(push_constant, scalar) uniform pc {ParticlesPC data;};
 
+layout(buffer_reference, scalar, buffer_reference_align = 4) buffer Part { f32vec3 pos;};
+
 layout(local_size_x = PARTICLES_X_TILE_SIZE, local_size_y = 1, local_size_z = 1) in;
 
 void main() {
     uint index = gl_GlobalInvocationID.x;  
 
-    data.particles_out[index].position = data.particles_in[index].position + gl_GlobalInvocationID;
+    (Part(data.particles_out)[index]).pos = (Part(data.particles_in)[index]).pos + gl_GlobalInvocationID;
 }
