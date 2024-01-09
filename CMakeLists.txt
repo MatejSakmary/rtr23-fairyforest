@@ -38,6 +38,7 @@ set (GLSL_FRAG_SOURCE_FILES
 
 set (GLSL_COMP_SOURCE_FILES
     "src/shaders/ssao.comp"
+    "src/shaders/particules.comp"
 )
 
 compile_glsl("${GLSL_VERT_SOURCE_FILES}" "vert")

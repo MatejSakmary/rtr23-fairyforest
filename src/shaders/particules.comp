@@ -1,0 +1,19 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "src/shared/particules.inl"
+
+/*
+layout(push_constant, scalar) uniform pc {SSAOPC data;};
+
+layout (local_size_x = SSAO_X_TILE_SIZE, local_size_y = SSAO_Y_TILE_SIZE, local_size_z = 1) in;
+void main()
+{
+    if(all(lessThan(gl_GlobalInvocationID.xy, u32vec2(data.extent))))
+    {
+        imageStore(image2DTable[data.ambient_occlusion_index], i32vec2(gl_GlobalInvocationID.xy), f32vec4(0.7));
+    }
+}
+*/
+void main() {
+    
+}

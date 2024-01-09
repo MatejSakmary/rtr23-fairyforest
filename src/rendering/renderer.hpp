@@ -20,7 +20,7 @@ namespace ff
 		RasterPipeline main_pass = {};
 
 		ComputePipeline ssao_pass = {};
-        ComputePipeline particules_pass = {}; // Loanie
+        ComputePipeline particules_pass = {};
 	};
 
 	struct Images
@@ -33,8 +33,8 @@ namespace ff
 	struct Buffers
 	{
         BufferId ssao_kernel = {};
-        BufferId particule_SSBO_in = {}; // Loanie
-        BufferId particule_SSBO_out = {}; // Loanie
+        BufferId particules_in = {}; 
+        BufferId particules_out = {};
 	};
 
     struct Renderer
@@ -51,7 +51,6 @@ namespace ff
 	  	void create_pipelines();
 		void create_resolution_indep_resources();
 		void create_resolution_dep_resources();
-        void create_particules_resources(); // Loanie
 
         std::shared_ptr<Context> context = {};
 		Pipelines pipelines = {};
