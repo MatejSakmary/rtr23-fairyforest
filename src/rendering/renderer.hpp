@@ -20,7 +20,7 @@ namespace ff
 		RasterPipeline main_pass = {};
 
 		ComputePipeline ssao_pass = {};
-        ComputePipeline particules_pass = {};
+        ComputePipeline particles_pass = {};
 	};
 
 	struct Images
@@ -33,8 +33,8 @@ namespace ff
 	struct Buffers
 	{
         BufferId ssao_kernel = {};
-        BufferId particules_in = {}; 
-        BufferId particules_out = {};
+        BufferId particles_in = {}; 
+        BufferId particles_out = {};
 	};
 
     struct Renderer

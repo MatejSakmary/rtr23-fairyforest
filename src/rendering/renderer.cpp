@@ -1,7 +1,7 @@
 #include "renderer.hpp"
 #include "../shared/scene.inl"
 #include "../shared/ssao.inl"
-#include "../shared/particules.inl"
+#include "../shared/particles.inl"
 namespace ff
 {
     Renderer::Renderer(std::shared_ptr<Context> context)
@@ -52,12 +52,12 @@ namespace ff
             .name = "compute test pipeline",
         }});
 
-        pipelines.particules_pass = ComputePipeline({ComputePipelineCreateInfo{
+        pipelines.particles_pass = ComputePipeline({ComputePipelineCreateInfo{
             .device = context->device,
-            .comp_spirv_path = ".\\src\\shaders\\bin\\particules.comp.spv",
+            .comp_spirv_path = ".\\src\\shaders\\bin\\particles.comp.spv",
             .entry_point = "main",
-            .push_constant_size = sizeof(ParticulesPC),
-            .name = "compute particules pipeline",
+            .push_constant_size = sizeof(ParticlesPC),
+            .name = "compute particles pipeline",
         }});
     }
 
@@ -90,14 +90,14 @@ namespace ff
             .name = "ambient occlusion",
         });
 
-        buffers.particules_in = context->device->create_buffer({
-            .size = sizeof(Particule) * PARTICULES_COUNT,
-            .name = "Particules SSBO In",
+        buffers.particles_in = context->device->create_buffer({
+            .size = sizeof(Particle) * PARTICLES_COUNT,
+            .name = "Particles SSBO In",
         });
 
-        buffers.particules_out = context->device->create_buffer({
-            .size = sizeof(Particule) * PARTICULES_COUNT,
-            .name = "Particules SSBO Out",
+        buffers.particles_out = context->device->create_buffer({
+            .size = sizeof(Particle) * PARTICLES_COUNT,
+            .name = "Particles SSBO Out",
         });
     }
 
@@ -301,6 +301,20 @@ namespace ff
             });
         }
 
+        // Particles System
+        {
+            command_buffer.cmd_set_compute_pipeline(pipelines.particles_pass);
+            command_buffer.cmd_set_push_constant(ParticlesPC{
+                .particles_in = context->device->get_buffer_device_address(buffers.particles_in),
+                .particles_out = context->device->get_buffer_device_address(buffers.particles_out),
+            });
+            command_buffer.cmd_dispatch({
+                .x = PARTICLES_X_TILE_SIZE,
+                .y = 1,
+                .z = 1,
+            });
+        }
+
         // depth                SHADER_READ_ONLY_OPTIMAL -> DEPTH_ATTACHMENT_OPTIMAL
         // ambient_occlusion    GENERAL                  -> SHADER_READ_ONLY_OPTIMAL
         {
@@ -407,8 +421,8 @@ namespace ff
     Renderer::~Renderer()
     {
         context->device->destroy_buffer(buffers.ssao_kernel);
-        context->device->destroy_buffer(buffers.particules_in);
-        context->device->destroy_buffer(buffers.particules_out);
+        context->device->destroy_buffer(buffers.particles_in);
+        context->device->destroy_buffer(buffers.particles_out);
         context->device->destroy_image(images.depth);
         context->device->destroy_image(images.ambient_occlusion);
         context->device->destroy_image(images.ss_normals);
