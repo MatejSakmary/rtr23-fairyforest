@@ -1,6 +1,7 @@
 #include "renderer.hpp"
 #include "../shared/scene.inl"
 #include "../shared/ssao.inl"
+#include "../shared/particules.inl"
 namespace ff
 {
     Renderer::Renderer(std::shared_ptr<Context> context)
@@ -9,6 +10,7 @@ namespace ff
         create_pipelines();
         create_resolution_indep_resources();
         create_resolution_dep_resources();
+        create_particules_resources(); // Loanie
     }
 
     void Renderer::create_pipelines()
@@ -49,6 +51,15 @@ namespace ff
             .entry_point = "main",
             .push_constant_size = sizeof(SSAOPC),
             .name = "compute test pipeline",
+        }});
+
+        // Loanie
+        pipelines.particules_pass = ComputePipeline({ComputePipelineCreateInfo{
+            .device = context->device,
+            .comp_spirv_path = ".\\src\\shaders\\bin\\particules.comp.spv",
+            .entry_point = "main",
+            .push_constant_size = sizeof(ParticulesPC),
+            .name = "compute particules pipeline",
         }});
     }
 
@@ -125,6 +136,34 @@ namespace ff
         auto recorded_command_buffer = resource_update_command_buffer.get_recorded_command_buffer();
         context->device->submit({.command_buffers = {&recorded_command_buffer, 1}});
         context->device->destroy_buffer(ssao_kernel_staging);
+        context->device->wait_idle();
+        context->device->cleanup_resources();
+    }
+
+// Loanie
+// Idk what is useless for particules from ssao
+void Renderer::create_particules_resources()
+    {
+        DBG_ASSERT_TRUE_M(sizeof(Particule) == sizeof(f32vec3) * 2, "Particule was changed from f32vec3 -> particule_kernel vector needs to be updated too");
+        std::vector<f32vec3> particule_kernel = {};
+        particule_kernel.reserve(PARTICULES_COUNT);
+
+        auto resource_update_command_buffer = CommandBuffer(context->device);
+
+        buffers.particule_SSBO_in = context->device->create_buffer({
+            .size = sizeof(Particule) * PARTICULES_COUNT,
+            // something to add VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+            .name = "¨Particules SSBO In",
+        });
+
+        buffers.particule_SSBO_out = context->device->create_buffer({
+            .size = sizeof(Particule) * PARTICULES_COUNT,
+            .name = "¨Particules SSBO Out",
+        });
+
+        resource_update_command_buffer.end();
+        auto recorded_command_buffer = resource_update_command_buffer.get_recorded_command_buffer();
+        context->device->submit({.command_buffers = {&recorded_command_buffer, 1}});
         context->device->wait_idle();
         context->device->cleanup_resources();
     }
@@ -388,6 +427,8 @@ namespace ff
     Renderer::~Renderer()
     {
         context->device->destroy_buffer(buffers.ssao_kernel);
+        context->device->destroy_buffer(buffers.particule_SSBO_in); // Loanie
+        context->device->destroy_buffer(buffers.particule_SSBO_out); // Loanie
         context->device->destroy_image(images.depth);
         context->device->destroy_image(images.ambient_occlusion);
         context->device->destroy_image(images.ss_normals);
