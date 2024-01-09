@@ -69,10 +69,10 @@ namespace ff
       public:
         RasterPipeline() = default;
         RasterPipeline(RasterPipelineCreateInfo const & info);
+        RasterPipeline(RasterPipeline && other);
+        RasterPipeline & operator=(RasterPipeline && other);
         RasterPipeline(RasterPipeline const & other) = delete;
         RasterPipeline & operator=(RasterPipeline const & other) = delete;
-        RasterPipeline(RasterPipeline && other) = delete;
-        RasterPipeline & operator=(RasterPipeline && other) = delete;
         ~RasterPipeline();
 
       private:
@@ -97,10 +97,10 @@ namespace ff
       public:
         ComputePipeline() = default;
         ComputePipeline(ComputePipelineCreateInfo const & info);
+        ComputePipeline(ComputePipeline && other);
+        ComputePipeline & operator=(ComputePipeline && other);
         ComputePipeline(ComputePipeline const & other) = delete;
         ComputePipeline & operator=(ComputePipeline const & other) = delete;
-        ComputePipeline(ComputePipeline && other) = delete;
-        ComputePipeline & operator=(ComputePipeline && other) = delete;
         ~ComputePipeline();
 
       private:

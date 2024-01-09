@@ -231,6 +231,23 @@ namespace ff
         BACKEND_LOG(fmt::format("[INFO][Pipeline::Pipeline()] Pipeline {} creation successful", info.name))
     }
 
+    RasterPipeline::RasterPipeline(RasterPipeline && other)
+    {
+        pipeline = other.pipeline;
+        other.pipeline = VK_NULL_HANDLE;
+        layout = other.layout;
+        device = other.device;
+    }
+
+    RasterPipeline & RasterPipeline::operator=(RasterPipeline && other)
+    {
+        pipeline = other.pipeline;
+        other.pipeline = VK_NULL_HANDLE;
+        layout = other.layout;
+        device = other.device;
+        return *this;
+    }
+
     RasterPipeline::~RasterPipeline()
     {
         if (pipeline != VK_NULL_HANDLE)
@@ -307,6 +324,23 @@ namespace ff
             CHECK_VK_RESULT(device->vkSetDebugUtilsObjectNameEXT(device->vulkan_device, &name_info));
         }
         BACKEND_LOG(fmt::format("[INFO][Pipeline::Pipeline()] Pipeline {} creation successful", info.name));
+    }
+
+    ComputePipeline::ComputePipeline(ComputePipeline && other)
+    {
+        pipeline = other.pipeline;
+        other.pipeline = VK_NULL_HANDLE;
+        layout = other.layout;
+        device = other.device;
+    }
+
+    ComputePipeline & ComputePipeline::operator=(ComputePipeline && other)
+    {
+        pipeline = other.pipeline;
+        other.pipeline = VK_NULL_HANDLE;
+        layout = other.layout;
+        device = other.device;
+        return *this;
     }
 
     ComputePipeline::~ComputePipeline()

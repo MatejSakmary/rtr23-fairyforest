@@ -3,33 +3,13 @@
 namespace ff
 {
     Renderer::Renderer(std::shared_ptr<Context> context)
-        : context{context},
-          triangle_pipeline({RasterPipelineCreateInfo{
-              .device = context->device,
-              .vert_spirv_path = ".\\src\\shaders\\bin\\mesh_draw.vert.spv",
-              .frag_spirv_path = ".\\src\\shaders\\bin\\mesh_draw.frag.spv",
-              .attachments = {{.format = context->swapchain->surface_format.format}},
-              .depth_test = DepthTestInfo{
-                  .depth_attachment_format = VkFormat::VK_FORMAT_D32_SFLOAT,
-                  .enable_depth_write = 1,
-                  .depth_test_compare_op = VkCompareOp::VK_COMPARE_OP_GREATER,
-              },
-              .entry_point = "main",
-              .push_constant_size = sizeof(DrawPc),
-              .name = "mesh draw pipeline",
-          }}),
-          compute_test_pipeline({ComputePipelineCreateInfo{
-              .device = context->device,
-              .comp_spirv_path = ".\\src\\shaders\\bin\\test.comp.spv",
-              .entry_point = "main",
-              .push_constant_size = sizeof(ComputeTestPC),
-              .name = "compute test pipeline",
-          }})
+        : context{context}
     {
+        create_pipelines();
         auto const swapchain_extent = context->swapchain->surface_extent;
         compute_test_buffer = context->device->create_buffer({
             .size = sizeof(ComputeTestBuffer) * COMPUTE_TEST_X_THREADS,
-            .name = "compute shader test buffer"
+            .name = "compute shader test buffer",
         });
         depth_buffer = context->device->create_image({
             .format = VkFormat::VK_FORMAT_D32_SFLOAT,
@@ -43,6 +23,46 @@ namespace ff
             .address_mode_v = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT,
             .name = "repeat sampler",
         });
+    }
+
+    void Renderer::create_pipelines()
+    {
+        pipelines.depth_prepass = RasterPipeline({RasterPipelineCreateInfo{
+            .device = context->device,
+            .vert_spirv_path = ".\\src\\shaders\\bin\\prepass.vert.spv",
+            .frag_spirv_path = ".\\src\\shaders\\bin\\prepass.frag.spv",
+            .depth_test = DepthTestInfo{
+                .depth_attachment_format = VkFormat::VK_FORMAT_D32_SFLOAT,
+                .enable_depth_write = 1,
+                .depth_test_compare_op = VkCompareOp::VK_COMPARE_OP_GREATER,
+            },
+            .entry_point = "main",
+            .push_constant_size = sizeof(DrawPc),
+            .name = "depth prepass pipeline",
+        }});
+
+        pipelines.main_pass = RasterPipeline({RasterPipelineCreateInfo{
+            .device = context->device,
+            .vert_spirv_path = ".\\src\\shaders\\bin\\mesh_draw.vert.spv",
+            .frag_spirv_path = ".\\src\\shaders\\bin\\mesh_draw.frag.spv",
+            .attachments = {{.format = context->swapchain->surface_format.format}},
+            .depth_test = DepthTestInfo{
+                .depth_attachment_format = VkFormat::VK_FORMAT_D32_SFLOAT,
+                .enable_depth_write = 0,
+                .depth_test_compare_op = VkCompareOp::VK_COMPARE_OP_EQUAL,
+            },
+            .entry_point = "main",
+            .push_constant_size = sizeof(DrawPc),
+            .name = "mesh draw pipeline",
+        }});
+
+        pipelines.compute_test = ComputePipeline({ComputePipelineCreateInfo{
+            .device = context->device,
+            .comp_spirv_path = ".\\src\\shaders\\bin\\test.comp.spv",
+            .entry_point = "main",
+            .push_constant_size = sizeof(ComputeTestPC),
+            .name = "compute test pipeline",
+        }});
     }
 
     void Renderer::resize()
@@ -69,10 +89,9 @@ namespace ff
         auto command_buffer = CommandBuffer(context->device);
         command_buffer.begin();
         // ============ COMPUTE TEST ==============================================
-        command_buffer.cmd_set_compute_pipeline(compute_test_pipeline);
+        command_buffer.cmd_set_compute_pipeline(pipelines.compute_test);
         command_buffer.cmd_set_push_constant(ComputeTestPC{
-            .compute_test_buffer = context->device->get_buffer_device_address(compute_test_buffer)
-        });
+            .compute_test_buffer = context->device->get_buffer_device_address(compute_test_buffer)});
         command_buffer.cmd_dispatch({.x = COMPUTE_TEST_X_THREADS, .y = 1, .z = 1});
         //=================================================================
         command_buffer.cmd_image_memory_transition_barrier({
@@ -99,41 +118,75 @@ namespace ff
 
         auto const & swapchain_extent = context->device->info_image(swapchain_image).extent;
 
-        command_buffer.cmd_begin_renderpass({
-            .color_attachments = {{
-                .image_id = swapchain_image,
-                .layout = VkImageLayout::VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
-                .load_op = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR,
-                .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE,
-                .clear_value = {.color = {.float32 = {0.5f, 0.7f, 1.0f, 1.0f}}},
-            }},
-            .depth_attachment = RenderingAttachmentInfo{
-                .image_id = depth_buffer,
-                .layout = VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
-                .load_op = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR,
-                .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                .clear_value = {.depthStencil = {.depth = 0.0f, .stencil = 0}},
-            },
-            .render_area = VkRect2D{.offset = {.x = 0, .y = 0}, .extent = {.width = swapchain_extent.width, .height = swapchain_extent.height}},
-        });
-        command_buffer.cmd_set_raster_pipeline(triangle_pipeline);
-        for (auto const & draw_command : draw_commands.draw_commands)
+        // DEPTH PREPASS
         {
-            command_buffer.cmd_set_push_constant(DrawPc{
-                .scene_descriptor = draw_commands.scene_descriptor,
-                .view_proj = camera_info.viewproj,
-                .mesh_index = draw_command.mesh_idx,
-                .sampler_id = repeat_sampler.index,
-                .sun_direction = glm::normalize(f32vec3(
-                    std::cos(f32(accum) / 5.0f),
-                    std::sin(f32(accum) / 5.0f),
-                    1.0f))});
-            command_buffer.cmd_draw({
-                .vertex_count = draw_command.index_count,
-                .instance_count = draw_command.instance_count,
+            command_buffer.cmd_begin_renderpass({
+                .depth_attachment = RenderingAttachmentInfo{
+                    .image_id = depth_buffer,
+                    .layout = VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+                    .load_op = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE,
+                    .clear_value = {.depthStencil = {.depth = 0.0f, .stencil = 0}},
+                },
+                .render_area = VkRect2D{.offset = {.x = 0, .y = 0}, .extent = {.width = swapchain_extent.width, .height = swapchain_extent.height}},
             });
+            command_buffer.cmd_set_raster_pipeline(pipelines.depth_prepass);
+            for (auto const & draw_command : draw_commands.draw_commands)
+            {
+                command_buffer.cmd_set_push_constant(DrawPc{
+                    .scene_descriptor = draw_commands.scene_descriptor,
+                    .view_proj = camera_info.viewproj,
+                    .mesh_index = draw_command.mesh_idx,
+                    .sampler_id = repeat_sampler.index,
+                    .sun_direction = glm::normalize(f32vec3(
+                        std::cos(f32(accum) / 5.0f),
+                        std::sin(f32(accum) / 5.0f),
+                        1.0f))});
+                command_buffer.cmd_draw({
+                    .vertex_count = draw_command.index_count,
+                    .instance_count = draw_command.instance_count,
+                });
+            }
+            command_buffer.cmd_end_renderpass();
         }
-        command_buffer.cmd_end_renderpass();
+        // COLOR PASS
+        {
+            command_buffer.cmd_begin_renderpass({
+                .color_attachments = {{
+                    .image_id = swapchain_image,
+                    .layout = VkImageLayout::VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+                    .load_op = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE,
+                    .clear_value = {.color = {.float32 = {0.5f, 0.7f, 1.0f, 1.0f}}},
+                }},
+                .depth_attachment = RenderingAttachmentInfo{
+                    .image_id = depth_buffer,
+                    .layout = VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+                    .load_op = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_LOAD,
+                    .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    .clear_value = {.depthStencil = {.depth = 0.0f, .stencil = 0}},
+                },
+                .render_area = VkRect2D{.offset = {.x = 0, .y = 0}, .extent = {.width = swapchain_extent.width, .height = swapchain_extent.height}},
+            });
+            command_buffer.cmd_set_raster_pipeline(pipelines.main_pass);
+            for (auto const & draw_command : draw_commands.draw_commands)
+            {
+                command_buffer.cmd_set_push_constant(DrawPc{
+                    .scene_descriptor = draw_commands.scene_descriptor,
+                    .view_proj = camera_info.viewproj,
+                    .mesh_index = draw_command.mesh_idx,
+                    .sampler_id = repeat_sampler.index,
+                    .sun_direction = glm::normalize(f32vec3(
+                        std::cos(f32(accum) / 5.0f),
+                        std::sin(f32(accum) / 5.0f),
+                        1.0f))});
+                command_buffer.cmd_draw({
+                    .vertex_count = draw_command.index_count,
+                    .instance_count = draw_command.instance_count,
+                });
+            }
+            command_buffer.cmd_end_renderpass();
+        }
 
         command_buffer.cmd_image_memory_transition_barrier({
             .src_stages = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,

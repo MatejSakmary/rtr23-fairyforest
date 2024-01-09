@@ -29,11 +29,13 @@ endif()
 set (GLSL_VERT_SOURCE_FILES
     "src/shaders/triangle.vert"
     "src/shaders/mesh_draw.vert"
+    "src/shaders/prepass.vert"
 )
 
 set (GLSL_FRAG_SOURCE_FILES
     "src/shaders/triangle.frag"
     "src/shaders/mesh_draw.frag"
+    "src/shaders/prepass.frag"
 )
 
 set (GLSL_COMP_SOURCE_FILES

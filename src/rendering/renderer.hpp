@@ -14,6 +14,13 @@ struct CameraInfo
 
 namespace ff
 {
+	struct Pipelines
+	{
+		RasterPipeline depth_prepass = {};
+		RasterPipeline main_pass = {};
+
+		ComputePipeline compute_test = {};
+	};
     struct Renderer
     {
       public:
@@ -25,10 +32,11 @@ namespace ff
         void resize();
 
       private:
+	  	void create_pipelines();
         std::shared_ptr<Context> context = {};
-        RasterPipeline triangle_pipeline = {};
-        ComputePipeline compute_test_pipeline = {};
-		BufferId compute_test_buffer = {};
+		Pipelines pipelines = {};
+
+        BufferId compute_test_buffer = {};
         u32 frame_index = {};
         SamplerId repeat_sampler = {};
         ImageId depth_buffer = {};

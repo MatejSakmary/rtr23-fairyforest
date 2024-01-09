@@ -1,4 +1,5 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
 #include "src/shared/scene.inl"
 // #extension GL_EXT_debug_printf : enable
 layout(location = 0) in f32vec2 in_uv;
