@@ -1,6 +1,5 @@
 #include "application.hpp"
 
-
 Application::Application()
     : keep_running(true),
       window{std::make_unique<Window>(1920, 1080, "Fairy Forest")},
@@ -12,32 +11,53 @@ Application::Application()
 {
     std::vector<AnimationKeyframe> keyframes = {
         AnimationKeyframe{
-            .start_rotation =       {0.20892, -0.176558, 0.62084, 0.7346},
-            .end_rotation =         {0.20892, -0.176558, 0.62084, 0.7346},
-            .start_position =       {0.0, 1.0, 10.0},
-            .first_control_point =  {-300.0, 1.0, 20.0},
-            .second_control_point = {-400.0, 300.0, 30.0},
-            .end_position =         {0.0, 1.0, 40.0},
-            .transition_time = 3.0f
-        },
+            .start_rotation = {-0.5992529, 0.6082096, 0.37080798, 0.36534727},
+            .end_rotation = {0.6747596, -0.66948044, -0.21878937, -0.22051468},
+            .start_position = {952.99524, -306.82825, 23},
+            .first_control_point = {892.64, -295.54, 23},
+            .second_control_point = {876.71, -267.25, 23},
+            .end_position = {876.5687, -237.30687, 23},
+            .transition_time = 7.0f},
         AnimationKeyframe{
-            .start_rotation =       {0.20892, -0.176558, 0.62084, 0.7346},
-            .end_rotation =         {0.74034554, -0.6245334, -0.16035266, -0.19008811},
-            .start_position =       {0.0, 1.0, 40.0},
-            .first_control_point =  {159.04951, -218.05574, 63.40108},
-            .second_control_point = {159.04951, -218.05574, 63.40108},
-            .end_position =         {159.04951, -218.05574, 63.40108},
-            .transition_time = 3.0f
-        },
+            .start_rotation = {0.6747596, -0.66948044, -0.21878937, -0.22051468},
+            .end_rotation = {0.56785387, -0.56538224, -0.42209232, -0.42393756},
+            .start_position = {876.5687, -237.30687, 23},
+            .first_control_point = {876.61, -205.94, 23},
+            .second_control_point = {845.67, -160.87, 23},
+            .end_position = {813.7164, -170.50764, 23},
+            .transition_time = 6.0f},
         AnimationKeyframe{
-            .start_rotation =       {0.74034554, -0.6245334, -0.16035266, -0.19008811},
-            .end_rotation =         {0.20892, -0.176558, 0.62084, 0.7346},
-            .start_position =       {159.04951, -218.05574, 63.40108},
-            .first_control_point =  {100.0, 1.0, 50.0},
-            .second_control_point = {100.0, 200.0, 45.0},
-            .end_position =         {0.0, 1.0, 10.0},
-            .transition_time = 3.0f
-        },
+            .start_rotation = {0.56785387, -0.56538224, -0.42209232, -0.42393756},
+            .end_rotation = {-0.40847868, 0.4017618, 0.5747157, 0.58432406},
+            .start_position = {813.7164, -170.50764, 23},
+            .first_control_point = {785.1, -178.46, 23},
+            .second_control_point = {782.24, -202.53, 23}, // 767.62, -198.09, 23
+            .end_position = {751.7979, -200.00076, 23},
+            .transition_time = 5.0f},
+        AnimationKeyframe{
+            .start_rotation = {-0.40847868, 0.4017618, 0.5747157, 0.58432406},
+            .end_rotation = {-0.57182485, 0.5723245, 0.41579014, 0.4154271},
+            .start_position = {751.7979, -200.00076, 23},
+            .first_control_point = {723.9, -197.88, 23},
+            .second_control_point = {579.78, -153.06, 23},
+            .end_position = {565.22064, -148.87428, 23},
+            .transition_time = 8.0f},
+        AnimationKeyframe{
+            .start_rotation = {-0.57182485, 0.5723245, 0.41579014, 0.4154271},
+            .end_rotation = {0.6334516, -0.61332214, -0.32816905, -0.3389397},
+            .start_position = {565.22064, -148.87428, 23},
+            .first_control_point = {550.3, -143.77, 23},
+            .second_control_point = {201.89, 8.115, 23},
+            .end_position = {221.9193, 35.31217, 23},
+            .transition_time = 16.0f},
+        AnimationKeyframe{
+            .start_rotation = {0.6334516, -0.61332214, -0.32816905, -0.3389397},
+            .end_rotation = {-0.022903541, 0.021171803, 0.67847013, 0.7339655},
+            .start_position = {221.9193, 35.31217, 23},
+            .first_control_point = {372.68, 223, 23},
+            .second_control_point = {245.5, 341.98, 23},
+            .end_position = {76.26797, 337.3477, 23},
+            .transition_time = 30.0f},
     };
     camera = CinematicCamera(keyframes, *window);
     std::filesystem::path const DEFAULT_ROOT_PATH = ".\\assets";
@@ -64,13 +84,13 @@ Application::Application()
     else
     {
         auto const r_id = std::get<RenderEntityId>(result);
-        RenderEntity& r_ent = *scene->_render_entities.slot(r_id);
+        RenderEntity & r_ent = *scene->_render_entities.slot(r_id);
         r_ent.transform = glm::mat4x3(
-            glm::vec3(1.0f, 0.0f, 0.0f),
-            glm::vec3(0.0f, 0.0f, 1.0f),
-            glm::vec3(0.0f, 1.0f, 0.0f),
-            glm::vec3(0.0f, 0.0f, 0.0f)
-        ) * 100.0f;
+                              glm::vec3(1.0f, 0.0f, 0.0f),
+                              glm::vec3(0.0f, 0.0f, 1.0f),
+                              glm::vec3(0.0f, 1.0f, 0.0f),
+                              glm::vec3(0.0f, 0.0f, 0.0f)) *
+                          100.0f;
         // ) * 100'000'000.0f;
         APP_LOG(fmt::format("[INFO]Application::Application()] Loading Scene Assets \"{}\" Success",
                             (DEFAULT_ROOT_PATH / DEFAULT_SCENE_PATH).string()));
@@ -89,7 +109,10 @@ auto Application::run() -> i32
         delta_time = std::chrono::duration_cast<FpMilliseconds>(new_time_point - last_time_point).count() * 0.001f;
         last_time_point = new_time_point;
         window->update(delta_time);
-        if (window->window_state->resized) { renderer->resize(); }
+        if (window->window_state->resized)
+        {
+            renderer->resize();
+        }
         update();
 
         camera.update_position(delta_time);
@@ -103,7 +126,10 @@ auto Application::run() -> i32
 
 void Application::update()
 {
-    if (window->size.x == 0 || window->size.y == 0) { return; }
+    if (window->size.x == 0 || window->size.y == 0)
+    {
+        return;
+    }
     camera_controller.process_input(*window, delta_time);
     camera_controller.update_matrices(*window);
 }
