@@ -1,5 +1,4 @@
 #include "renderer.hpp"
-#include "../shared/shared.inl"
 #include "../shared/scene.inl"
 #include "../shared/ssao.inl"
 namespace ff
