@@ -89,16 +89,6 @@ namespace ff
             .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
             .name = "ambient occlusion",
         });
-
-        buffers.particles_in = context->device->create_buffer({
-            .size = sizeof(Particle) * PARTICLES_COUNT,
-            .name = "Particles SSBO In",
-        });
-
-        buffers.particles_out = context->device->create_buffer({
-            .size = sizeof(Particle) * PARTICLES_COUNT,
-            .name = "Particles SSBO Out",
-        });
     }
 
     void Renderer::create_resolution_indep_resources()
@@ -146,6 +136,16 @@ namespace ff
         context->device->destroy_buffer(ssao_kernel_staging);
         context->device->wait_idle();
         context->device->cleanup_resources();
+
+        buffers.particles_in = context->device->create_buffer({
+            .size = sizeof(Particle) * PARTICLES_COUNT,
+            .name = "Particles SSBO In",
+        });
+
+        buffers.particles_out = context->device->create_buffer({
+            .size = sizeof(Particle) * PARTICLES_COUNT,
+            .name = "Particles SSBO Out",
+        });
     }
 
     void Renderer::resize()
