@@ -98,7 +98,7 @@ void CameraController::update_matrices(Window & window)
     cam_info.proj = prespective;
     cam_info.view = glm::lookAt(position, position + forward, up);
     auto const view_quat = glm::quat_cast(cam_info.view);
-    APP_LOG(fmt::format("view quat {} {} {} {}", view_quat.w, view_quat.x, view_quat.y, view_quat.z));
+    // APP_LOG(fmt::format("view quat {} {} {} {}", view_quat.w, view_quat.x, view_quat.y, view_quat.z));
     cam_info.viewproj = cam_info.proj * cam_info.view;
     cam_info.pos = position;
     cam_info.up = up;

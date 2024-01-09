@@ -1,3 +1,6 @@
+#ifdef __cplusplus
+#pragma once
+#endif //__cplusplus
 #include "../backend/backend.inl"
 #define COMPUTE_TEST_X_THREADS 64
 BUFFER_REF(4)

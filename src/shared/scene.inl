@@ -1,5 +1,7 @@
-#include "../backend/backend.inl"
+#ifdef __cplusplus
 #pragma once
+#endif //__cplusplus
+#include "../backend/backend.inl"
 BUFFER_REF(4)
 SceneDescriptor
 {

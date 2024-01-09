@@ -16,10 +16,22 @@ namespace ff
 {
 	struct Pipelines
 	{
-		RasterPipeline depth_prepass = {};
+		RasterPipeline prepass = {};
 		RasterPipeline main_pass = {};
 
-		ComputePipeline compute_test = {};
+		ComputePipeline ssao_pass = {};
+	};
+
+	struct Images
+	{
+		ImageId ss_normals = {};
+		ImageId ambient_occlusion = {};
+        ImageId depth = {};
+	};
+
+	struct Buffers
+	{
+        BufferId ssao_kernel = {};
 	};
     struct Renderer
     {
@@ -33,12 +45,15 @@ namespace ff
 
       private:
 	  	void create_pipelines();
+		void create_resolution_indep_resources();
+		void create_resolution_dep_resources();
+
         std::shared_ptr<Context> context = {};
 		Pipelines pipelines = {};
+		Images images = {};
+		Buffers buffers = {};
 
-        BufferId compute_test_buffer = {};
         u32 frame_index = {};
         SamplerId repeat_sampler = {};
-        ImageId depth_buffer = {};
     };
 } // namespace ff

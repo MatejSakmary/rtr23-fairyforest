@@ -95,7 +95,7 @@ auto Application::run() -> i32
         camera.update_position(delta_time);
         renderer->draw_frame(commands, camera.info, delta_time);
         // renderer->draw_frame(commands, camera_controller.cam_info, delta_time);
-        APP_LOG(fmt::format("{} {} {}", camera_controller.cam_info.pos.x, camera_controller.cam_info.pos.y, camera_controller.cam_info.pos.z));
+        // APP_LOG(fmt::format("{} {} {}", camera_controller.cam_info.pos.x, camera_controller.cam_info.pos.y, camera_controller.cam_info.pos.z));
         keep_running &= !static_cast<bool>(glfwWindowShouldClose(window->glfw_handle));
     }
     return 0;
