@@ -1,6 +1,7 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
-#include "src/shared/ssao.inl"
+#extension GL_EXT_debug_printf : enable
+#include "src/shared/shared.inl"
 
 layout(push_constant, scalar) uniform pc {SSAOPC data;};
 
@@ -9,6 +10,57 @@ void main()
 {
     if(all(lessThan(gl_GlobalInvocationID.xy, u32vec2(data.extent))))
     {
-        imageStore(image2DTable[data.ambient_occlusion_index], i32vec2(gl_GlobalInvocationID.xy), f32vec4(0.7));
+        const i32vec2 coords = i32vec2(gl_GlobalInvocationID.xy);
+        const f32vec2 uv = f32vec2(coords) / f32vec2(data.extent);
+        const f32vec2 ndc_xy = (uv * 2.0) - 1.0;
+
+        const f32vec3 world_space_normal = imageLoad(image2DTable[data.ss_normals_index], coords).xyz;
+        const f32mat4x4 view_matrix = (CameraInfoBuf(data.camera_info)[data.fif_index]).view;
+        const f32vec3 view_space_normal = normalize((view_matrix * f32vec4(world_space_normal, 0.0)).xyz);
+
+        const f32 depth = texelFetch(texture2DTable[data.depth_index], coords, 0).r;
+        const f32mat4x4 inverse_projection = (CameraInfoBuf(data.camera_info)[data.fif_index]).inverse_projection;
+        const f32vec4 unprojected_view_pos = inverse_projection * f32vec4(ndc_xy, depth, 1.0);
+        const f32vec3 view_pos = unprojected_view_pos.xyz / unprojected_view_pos.w;
+
+        const i32vec2 noise_wrapped_coords = i32vec2(coords.x % SSAO_KERNEL_NOISE_SIZE, coords.y % SSAO_KERNEL_NOISE_SIZE);
+        const f32vec3 kernel_noise = imageLoad(image2DTable[data.kernel_noise_index], noise_wrapped_coords).xyz;
+        // const f32vec3 random_tangent_vector = normalize(f32vec3(kernel_noise.xy, 0.0));
+        const f32vec3 random_tangent_vector = normalize(kernel_noise);
+
+        const f32vec3 tangent = normalize(random_tangent_vector - dot(random_tangent_vector, view_space_normal) * view_space_normal);
+        const f32vec3 bitangent = normalize(cross(view_space_normal, tangent));
+        const f32mat3x3 TBN = f32mat3x3(tangent, bitangent, view_space_normal);
+
+        f32 accumulated_ocluded_samples = 0.0;
+        const f32 radius = 0.5;
+        const f32 bias = 0.025;
+        const f32mat4x4 projection = (CameraInfoBuf(data.camera_info)[data.fif_index]).projection;
+
+        for(i32 ao_sample_index = 0; ao_sample_index < SSAO_KERNEL_SAMPLE_COUNT; ao_sample_index++)
+        {
+            const f32vec3 ssao_kernel_offset = (SSAOKernel(data.SSAO_kernel)[ao_sample_index]).sample_pos;
+            const f32vec3 view_space_kernel_offset = TBN * ssao_kernel_offset;
+            const f32vec3 kernel_sample = view_pos + view_space_kernel_offset * radius;
+
+            const f32vec4 projected_kernel_sample = projection * f32vec4(kernel_sample, 1.0);
+            const f32vec3 ndc_kernel_sample = projected_kernel_sample.xyz / projected_kernel_sample.w;
+            const f32vec2 screen_space_kernel_sample = ndc_kernel_sample.xy * 0.5 + 0.5;
+
+            const i32vec2 kernel_sample_coords = i32vec2(screen_space_kernel_sample * data.extent);
+            const f32 sampled_depth = texelFetch(texture2DTable[data.depth_index], kernel_sample_coords, 0).r;
+            const f32vec4 unprojected_sample_view_pos = inverse_projection * f32vec4(ndc_kernel_sample.xy, sampled_depth, 1.0);
+            const f32 sample_view_real_depth = unprojected_sample_view_pos.z / unprojected_sample_view_pos.w;
+
+            if(sample_view_real_depth >= kernel_sample.z + bias)
+            {
+                const f32 range_check = smoothstep(0.0, 1.0, radius / abs(view_pos.z - sample_view_real_depth));
+                accumulated_ocluded_samples += 1.0 * range_check;
+            }
+        } 
+        const f32 occlusion = 1.0 - (accumulated_ocluded_samples / SSAO_KERNEL_SAMPLE_COUNT);
+        // imageStore(image2DTable[data.ambient_occlusion_index], i32vec2(gl_GlobalInvocationID.xy), f32vec4(view_space_normal, 1.0));
+        // imageStore(image2DTable[data.ambient_occlusion_index], i32vec2(gl_GlobalInvocationID.xy), f32vec4(view_pos, 1.0));
+        imageStore(image2DTable[data.ambient_occlusion_index], i32vec2(gl_GlobalInvocationID.xy), f32vec4(occlusion));
     }
 }

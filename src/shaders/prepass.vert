@@ -1,6 +1,6 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
-#include "src/shared/scene.inl"
+#include "src/shared/shared.inl"
 
 layout(push_constant, scalar) uniform pc { DrawPc data; };
 

@@ -7,10 +7,10 @@
 #include <fastgltf/types.hpp>
 #include "../fairy_forest.hpp"
 
-#include "../shared/scene.inl"
+#include "../shared/shared.inl"
 #include "../backend/slotmap.hpp"
 using namespace ff::types;
-#define MAX_MESHES_PER_MESHGROUP 30
+#define MAX_MESHES_PER_MESHGROUP 105
 
 struct TextureManifestEntry
 {

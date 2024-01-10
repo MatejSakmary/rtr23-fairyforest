@@ -1,6 +1,6 @@
 #include "renderer.hpp"
-#include "../shared/scene.inl"
-#include "../shared/ssao.inl"
+#include "../shared/shared.inl"
+#include <random>
 namespace ff
 {
     Renderer::Renderer(std::shared_ptr<Context> context)
@@ -17,7 +17,9 @@ namespace ff
             .device = context->device,
             .vert_spirv_path = ".\\src\\shaders\\bin\\prepass.vert.spv",
             .frag_spirv_path = ".\\src\\shaders\\bin\\prepass.frag.spv",
-            .attachments = {RenderAttachmentInfo{.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT}},
+            .attachments = {
+                RenderAttachmentInfo{.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT},
+            },
             .depth_test = DepthTestInfo{
                 .depth_attachment_format = VkFormat::VK_FORMAT_D32_SFLOAT,
                 .enable_depth_write = 1,
@@ -73,7 +75,7 @@ namespace ff
             .name = "ss normals",
         });
         images.ambient_occlusion = context->device->create_image({
-            .format = VkFormat::VK_FORMAT_R16_SFLOAT,
+            .format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT,
             .extent = {swapchain_extent.width, swapchain_extent.height, 1},
             .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT |
                      VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT,
@@ -90,20 +92,9 @@ namespace ff
             .name = "repeat sampler",
         });
 
-        DBG_ASSERT_TRUE_M(sizeof(SSAOKernel) == sizeof(f32vec3), "SSAO Kernel was changed from f32vec3 -> ssao_kernel vector needs to be updated too");
-        std::vector<f32vec3> ssao_kernel = {};
-        ssao_kernel.reserve(SSAO_KERNEL_SAMPLE_COUNT);
-        for (i32 kernel_index = 0; kernel_index < SSAO_KERNEL_SAMPLE_COUNT; kernel_index++)
-        {
-            // TODO(msakmary) Generate proper kernel samples here
-            ssao_kernel.emplace_back(kernel_index);
-        }
-
-        auto resource_update_command_buffer = CommandBuffer(context->device);
-        auto ssao_kernel_staging = context->device->create_buffer({
-            .size = sizeof(SSAOKernel) * SSAO_KERNEL_SAMPLE_COUNT,
-            .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
-            .name = "SSAO kernel staging",
+        buffers.camera_info = context->device->create_buffer({
+            .size = sizeof(CameraInfoBuf) * (FRAMES_IN_FLIGHT + 1),
+            .name = "camera info buffer",
         });
 
         buffers.ssao_kernel = context->device->create_buffer({
@@ -111,24 +102,117 @@ namespace ff
             .name = "SSAO kernel",
         });
 
-        void * staging_ptr = context->device->get_buffer_host_pointer(ssao_kernel_staging);
-        std::memcpy(staging_ptr, ssao_kernel.data(), sizeof(SSAOKernel) * SSAO_KERNEL_SAMPLE_COUNT);
+        // SSAO RANDOM KERNEL
+        std::mt19937 engine = std::mt19937(747474);
+        std::uniform_real_distribution distribution = std::uniform_real_distribution<f32>(0.0, 1.0);
+        BufferId ssao_kernel_staging = {};
+        {
+            DBG_ASSERT_TRUE_M(sizeof(SSAOKernel) == sizeof(f32vec3), "SSAO Kernel was changed from f32vec3 -> ssao_kernel vector needs to be updated too");
+            std::vector<f32vec3> ssao_kernel = {};
+            ssao_kernel.reserve(SSAO_KERNEL_SAMPLE_COUNT);
+            for (i32 kernel_index = 0; kernel_index < SSAO_KERNEL_SAMPLE_COUNT; kernel_index++)
+            {
+                f32vec3 const random_sample = f32vec3(
+                    distribution(engine) * 2.0f - 1.0f,
+                    distribution(engine) * 2.0f - 1.0f,
+                    distribution(engine));
 
-        buffers.camera_info = context->device->create_buffer({.size = sizeof(CameraInfoBuf) * FRAMES_IN_FLIGHT,
-                                                              .name = "camera info buffer"});
+                f32 const weight = static_cast<f32>(kernel_index) / static_cast<f32>(SSAO_KERNEL_SAMPLE_COUNT);
+                // Push samples towards origin
+                f32 const non_uniform_weight = 0.1f + (weight * weight) * 0.9f;
+                f32vec3 const weighed_random_sample = non_uniform_weight * random_sample;
+                ssao_kernel.emplace_back(weighed_random_sample);
+            }
 
+            ssao_kernel_staging = context->device->create_buffer({
+                .size = sizeof(SSAOKernel) * SSAO_KERNEL_SAMPLE_COUNT,
+                .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+                .name = "SSAO kernel staging",
+            });
+
+            void * staging_ptr = context->device->get_buffer_host_pointer(ssao_kernel_staging);
+            std::memcpy(staging_ptr, ssao_kernel.data(), sizeof(SSAOKernel) * SSAO_KERNEL_SAMPLE_COUNT);
+        }
+
+        // SSAO KERNEL NOISE
+        BufferId ssao_kernel_noise_staging = {};
+        {
+            std::vector<f32vec4> ssao_kernel_noise = {};
+            ssao_kernel_noise.reserve(SSAO_KERNEL_NOISE_SIZE * SSAO_KERNEL_NOISE_SIZE);
+            for (i32 noise_index = 0; noise_index < SSAO_KERNEL_NOISE_SIZE * SSAO_KERNEL_NOISE_SIZE; noise_index++)
+            {
+                ssao_kernel_noise.emplace_back(
+                    distribution(engine) * 2.0f - 1.0f,
+                    distribution(engine) * 2.0f - 1.0f,
+                    distribution(engine) * 2.0f - 1.0f,
+                    0.0f);
+            }
+            ssao_kernel_noise_staging = context->device->create_buffer({
+                .size = sizeof(f32vec4) * SSAO_KERNEL_NOISE_SIZE * SSAO_KERNEL_NOISE_SIZE,
+                .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+                .name = "SSAO kernel noise staging",
+            });
+
+            // TODO(msakmary) change this to be a buffer
+            images.ssao_kernel_noise = context->device->create_image({
+                .format = VkFormat::VK_FORMAT_R32G32B32A32_SFLOAT,
+                .extent = {SSAO_KERNEL_NOISE_SIZE, SSAO_KERNEL_NOISE_SIZE, 1},
+                .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                         VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT,
+                .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .name = "ssao kernel noise",
+            });
+
+            void * staging_ptr = context->device->get_buffer_host_pointer(ssao_kernel_noise_staging);
+            std::memcpy(staging_ptr, ssao_kernel_noise.data(), sizeof(f32vec4) * SSAO_KERNEL_NOISE_SIZE * SSAO_KERNEL_NOISE_SIZE);
+        }
+
+        auto resource_update_command_buffer = CommandBuffer(context->device);
         resource_update_command_buffer.begin();
-        resource_update_command_buffer.cmd_copy_buffer_to_buffer({
-            .src_buffer = ssao_kernel_staging,
-            .src_offset = 0,
-            .dst_buffer = buffers.ssao_kernel,
-            .dst_offset = 0,
-            .size = static_cast<u32>(sizeof(SSAOKernel) * SSAO_KERNEL_SAMPLE_COUNT),
-        });
+        // Fill kernel buffer
+        {
+            resource_update_command_buffer.cmd_copy_buffer_to_buffer({
+                .src_buffer = ssao_kernel_staging,
+                .dst_buffer = buffers.ssao_kernel,
+                .size = static_cast<u32>(sizeof(SSAOKernel) * SSAO_KERNEL_SAMPLE_COUNT),
+            });
+        }
+        // Fill noise image
+        {
+            resource_update_command_buffer.cmd_image_memory_transition_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+                .src_access = VK_ACCESS_2_NONE,
+                .dst_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                .dst_access = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .image_id = images.ssao_kernel_noise,
+            });
+            resource_update_command_buffer.cmd_copy_buffer_to_image({
+                .buffer_id = ssao_kernel_noise_staging,
+                .image_id = images.ssao_kernel_noise,
+                .image_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .image_offset = {0, 0, 0},
+                .image_extent = {SSAO_KERNEL_NOISE_SIZE, SSAO_KERNEL_NOISE_SIZE, 1},
+            });
+            resource_update_command_buffer.cmd_image_memory_transition_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                .src_access = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                .dst_stages = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
+                .dst_access = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL,
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .image_id = images.ssao_kernel_noise,
+            });
+        }
         resource_update_command_buffer.end();
         auto recorded_command_buffer = resource_update_command_buffer.get_recorded_command_buffer();
         context->device->submit({.command_buffers = {&recorded_command_buffer, 1}});
         context->device->destroy_buffer(ssao_kernel_staging);
+        context->device->destroy_buffer(ssao_kernel_noise_staging);
         context->device->wait_idle();
         context->device->cleanup_resources();
     }
@@ -148,7 +232,7 @@ namespace ff
         PreciseStopwatch stopwatch = {};
         static f32 accum = 0.0f;
         auto swapchain_image = context->swapchain->acquire_next_image();
-        u32 const fif_index = frame_index % (FRAMES_IN_FLIGHT);
+        u32 const fif_index = frame_index % (FRAMES_IN_FLIGHT + 1);
 
         auto command_buffer = CommandBuffer(context->device);
         auto const & swapchain_extent = context->device->info_image(swapchain_image).extent;
@@ -307,7 +391,10 @@ namespace ff
             command_buffer.cmd_set_compute_pipeline(pipelines.ssao_pass);
             command_buffer.cmd_set_push_constant(SSAOPC{
                 .SSAO_kernel = context->device->get_buffer_device_address(buffers.ssao_kernel),
+                .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
+                .fif_index = fif_index,
                 .ss_normals_index = images.ss_normals.index,
+                .kernel_noise_index = images.ssao_kernel_noise.index,
                 .depth_index = images.depth.index,
                 .ambient_occlusion_index = images.ambient_occlusion.index,
                 .extent = {swapchain_extent.width, swapchain_extent.height},
@@ -429,6 +516,7 @@ namespace ff
     {
         context->device->destroy_buffer(buffers.camera_info);
         context->device->destroy_buffer(buffers.ssao_kernel);
+        context->device->destroy_image(images.ssao_kernel_noise);
         context->device->destroy_image(images.depth);
         context->device->destroy_image(images.ambient_occlusion);
         context->device->destroy_image(images.ss_normals);

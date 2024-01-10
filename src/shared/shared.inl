@@ -56,3 +56,28 @@ struct DrawPc
     u32 sampler_id;
     f32vec3 sun_direction;
 };
+
+// SSAO 
+#define SSAO_X_TILE_SIZE 16
+#define SSAO_Y_TILE_SIZE 16
+#define SSAO_KERNEL_NOISE_SIZE 4
+
+#define SSAO_KERNEL_SAMPLE_COUNT 64
+
+BUFFER_REF(4)
+SSAOKernel
+{
+    f32vec3 sample_pos;
+};
+
+struct SSAOPC
+{
+    VkDeviceAddress SSAO_kernel;
+    VkDeviceAddress camera_info;
+    u32 fif_index;
+    u32 ss_normals_index;
+    u32 kernel_noise_index;
+    u32 depth_index;
+    u32 ambient_occlusion_index;
+    i32vec2 extent;
+};

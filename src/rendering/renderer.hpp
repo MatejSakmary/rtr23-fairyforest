@@ -26,6 +26,7 @@ namespace ff
 	{
 		ImageId ss_normals = {};
 		ImageId ambient_occlusion = {};
+		ImageId ssao_kernel_noise = {};
         ImageId depth = {};
 	};
 

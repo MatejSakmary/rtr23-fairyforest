@@ -721,7 +721,7 @@ auto AssetProcessor::load_mesh_group(Scene & scene, u32 mesh_group_manifest_inde
     for (u32 mesh_in_meshgroup_index = 0; mesh_in_meshgroup_index < mesh_group_data.mesh_count; mesh_in_meshgroup_index++)
     {
         u32 const mesh_manifest_index = mesh_group_data.mesh_manifest_indices.at(mesh_in_meshgroup_index);
-        result = load_mesh(scene, mesh_group_manifest_index);
+        result = load_mesh(scene, mesh_manifest_index);
         if (result != AssetLoadResultCode::SUCCESS)
         {
             return result;
@@ -734,7 +734,7 @@ void process_node(Scene & scene, RenderEntity const * node, f32mat4x3 curr_trans
 {
     auto const has_children = node->first_child.has_value();
     auto const has_meshgroup = node->mesh_group_manifest_index.has_value();
-    DBG_ASSERT_TRUE_M(has_children != has_meshgroup, "[ERROR][AssetProcessor::process_node()] Node is both meshgroup and has children");
+    DBG_ASSERT_TRUE_M(!(has_children && has_meshgroup), "[ERROR][AssetProcessor::process_node()] Node is both meshgroup and has children");
 
     auto mat4x3_to_mat4x4 = [](f32mat4x3 orig) -> f32mat4x4
     {
@@ -1111,6 +1111,14 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
         .flags = {},
         .name = "gpu_materials_descriptor",
     });
+    // FIXME(msakmary) GIANT HACK
+    if (dirty_material_entry_indices.size() == 0)
+    {
+        for(i32 i = 0; i < scene._material_manifest.size(); i++)
+        {
+            dirty_material_entry_indices.push_back(i);
+        }
+    }
     auto upload_manifest_command_buffer = ff::CommandBuffer(_device);
     upload_manifest_command_buffer.begin();
     auto const materials_update_staging_buffer = _device->create_buffer({
@@ -1121,8 +1129,8 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
     MaterialDescriptor * const staging_origin_ptr = reinterpret_cast<MaterialDescriptor *>(_device->get_buffer_host_pointer(materials_update_staging_buffer));
     for (u32 dirty_materials_index = 0; dirty_materials_index < dirty_material_entry_indices.size(); dirty_materials_index++)
     {
-        auto const & texture_manifest = _upload_texture_queue.at(0).scene->_material_texture_manifest;
-        auto const & material_manifest = _upload_texture_queue.at(0).scene->_material_manifest;
+        auto const & texture_manifest = scene._material_texture_manifest;
+        auto const & material_manifest = scene._material_manifest;
         MaterialManifestEntry const & material = material_manifest.at(dirty_material_entry_indices.at(dirty_materials_index));
 
         if (material.diffuse_tex_index.has_value())

@@ -1,6 +1,6 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
-#include "src/shared/scene.inl"
+#include "src/shared/shared.inl"
 layout(location = 0) in f32vec2 in_uv;
 layout(location = 1) in f32vec4 in_tangent;
 layout(location = 2) in f32vec3 in_normal;
@@ -52,4 +52,5 @@ void main()
     const f32vec3 bitangent = normalize(cross(norm_in_normal, ort_tangent) * -in_tangent.w);
     const f32mat3x3 TBN = f32mat3x3(ort_tangent, bitangent, norm_in_normal);
     world_normal = f32vec4(normalize(TBN * rescaled_normal), 1.0);
+    // world_normal = f32vec4(in_normal, 1.0);
 }

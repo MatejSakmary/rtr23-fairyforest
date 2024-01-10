@@ -19,7 +19,7 @@ struct Application
 
   private:
     void update();
-	f32 delta_time = 0.016666f;
+    f32 delta_time = 0.016666f;
     std::chrono::time_point<std::chrono::steady_clock> last_time_point = {};
 
     bool keep_running = {};
@@ -28,7 +28,7 @@ struct Application
     std::unique_ptr<ff::Renderer> renderer = {};
     std::unique_ptr<Scene> scene = {};
     std::unique_ptr<AssetProcessor> asset_processor = {};
-	CameraController camera_controller = {};
-	CinematicCamera camera = {};
+    CameraController camera_controller = {};
+    CinematicCamera camera = {};
     SceneDrawCommands commands = {};
 };

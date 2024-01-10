@@ -61,11 +61,10 @@ Application::Application()
     };
     camera = CinematicCamera(keyframes, *window);
     std::filesystem::path const DEFAULT_ROOT_PATH = ".\\assets";
-    // std::filesystem::path const DEFAULT_SCENE_PATH = "medieval_battle\\medieval_battle_gltf\\medieval_battle.gltf";
-    // std::filesystem::path const DEFAULT_SCENE_PATH = "instanced_cubes\\instanced_cubes.gltf";
-    // std::filesystem::path const DEFAULT_SCENE_PATH = "forest\\forest.gltf";
-    std::filesystem::path const DEFAULT_SCENE_PATH = "forest_scaled\\forest_scaled.gltf";
-    // std::filesystem::path const DEFAULT_SCENE_PATH = "new_sponza\\NewSponza_Main_glTF_002.gltf";
+    // std::filesystem::path const DEFAULT_SCENE_PATH = "forest_scaled\\forest_scaled.gltf";
+    std::filesystem::path const DEFAULT_SCENE_PATH = "old_sponza\\old_sponza.gltf";
+    // std::filesystem::path const DEFAULT_SCENE_PATH = "new_sponza\\new_sponza.gltf";
+    // std::filesystem::path const DEFAULT_SCENE_PATH = "cube_on_plane\\cube.gltf";
 
     auto const result = scene->load_manifest_from_gltf(DEFAULT_ROOT_PATH, DEFAULT_SCENE_PATH);
     if (Scene::LoadManifestErrorCode const * err = std::get_if<Scene::LoadManifestErrorCode>(&result))
@@ -90,7 +89,7 @@ Application::Application()
                               glm::vec3(0.0f, 0.0f, 1.0f),
                               glm::vec3(0.0f, 1.0f, 0.0f),
                               glm::vec3(0.0f, 0.0f, 0.0f)) *
-                          100.0f;
+                          1.0f;
         // ) * 100'000'000.0f;
         APP_LOG(fmt::format("[INFO]Application::Application()] Loading Scene Assets \"{}\" Success",
                             (DEFAULT_ROOT_PATH / DEFAULT_SCENE_PATH).string()));
@@ -116,8 +115,8 @@ auto Application::run() -> i32
         update();
 
         camera.update_position(delta_time);
-        renderer->draw_frame(commands, camera.info, delta_time);
-        // renderer->draw_frame(commands, camera_controller.cam_info, delta_time);
+        // renderer->draw_frame(commands, camera.info, delta_time);
+        renderer->draw_frame(commands, camera_controller.cam_info, delta_time);
         // APP_LOG(fmt::format("{} {} {}", camera_controller.cam_info.pos.x, camera_controller.cam_info.pos.y, camera_controller.cam_info.pos.z));
         keep_running &= !static_cast<bool>(glfwWindowShouldClose(window->glfw_handle));
     }
