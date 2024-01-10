@@ -146,6 +146,16 @@ namespace ff
             .size = sizeof(Particle) * PARTICLES_COUNT,
             .name = "Particles SSBO Out",
         });
+
+        buffers.atomic_count = context->device->create_buffer({
+            .size = sizeof(i32), 
+            .name = "Particles Atomic Counter",
+        });
+
+        buffers.last_count = context->device->create_buffer({
+            .size = sizeof(i32), 
+            .name = "Particles Last Count",
+        });
     }
 
     void Renderer::resize()
@@ -307,6 +317,8 @@ namespace ff
             command_buffer.cmd_set_push_constant(ParticlesPC{
                 .particles_in = context->device->get_buffer_device_address(buffers.particles_in),
                 .particles_out = context->device->get_buffer_device_address(buffers.particles_out),
+                .atomic_count = context->device->get_buffer_device_address(buffers.atomic_count),
+                .last_count = context->device->get_buffer_device_address(buffers.last_count),
             });
             command_buffer.cmd_dispatch({
                 .x = PARTICLES_X_TILE_SIZE,
@@ -423,6 +435,8 @@ namespace ff
         context->device->destroy_buffer(buffers.ssao_kernel);
         context->device->destroy_buffer(buffers.particles_in);
         context->device->destroy_buffer(buffers.particles_out);
+        context->device->destroy_buffer(buffers.atomic_count);
+        context->device->destroy_buffer(buffers.last_count);
         context->device->destroy_image(images.depth);
         context->device->destroy_image(images.ambient_occlusion);
         context->device->destroy_image(images.ss_normals);

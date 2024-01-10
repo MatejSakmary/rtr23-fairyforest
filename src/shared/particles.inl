@@ -14,12 +14,14 @@ BUFFER_REF(4)
 Particle
 {
     f32vec3 pos;    // Particle position
-    //f32vec3 vel;    // Particle velocity
-    // color
+    f32vec3 vel;    // Particle velocity
+    float ttl;      // Time to live
 };
 
 struct ParticlesPC
 {
     VkDeviceAddress particles_in;
     VkDeviceAddress particles_out;
+    VkDeviceAddress atomic_count; // TODO(lgress) : See how to make a proper atomic counter with Vulkan
+    VkDeviceAddress last_count; // Not sure yet what is variable is supposed to get
 };
