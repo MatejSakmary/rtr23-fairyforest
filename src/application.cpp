@@ -61,8 +61,9 @@ Application::Application()
     };
     camera = CinematicCamera(keyframes, *window);
     std::filesystem::path const DEFAULT_ROOT_PATH = ".\\assets";
-    // std::filesystem::path const DEFAULT_SCENE_PATH = "forest_scaled\\forest_scaled.gltf";
-    std::filesystem::path const DEFAULT_SCENE_PATH = "old_sponza\\old_sponza.gltf";
+    // std::filesystem::path const DEFAULT_SCENE_PATH = "forest\\forest.gltf";
+    std::filesystem::path const DEFAULT_SCENE_PATH = "forest_leaves_twofaced\\forest_leaves_twofaced.gltf";
+    // std::filesystem::path const DEFAULT_SCENE_PATH = "old_sponza\\old_sponza.gltf";
     // std::filesystem::path const DEFAULT_SCENE_PATH = "new_sponza\\new_sponza.gltf";
     // std::filesystem::path const DEFAULT_SCENE_PATH = "cube_on_plane\\cube.gltf";
 
@@ -84,12 +85,12 @@ Application::Application()
     {
         auto const r_id = std::get<RenderEntityId>(result);
         RenderEntity & r_ent = *scene->_render_entities.slot(r_id);
-        r_ent.transform = glm::mat4x3(
-                              glm::vec3(1.0f, 0.0f, 0.0f),
-                              glm::vec3(0.0f, 0.0f, 1.0f),
-                              glm::vec3(0.0f, 1.0f, 0.0f),
-                              glm::vec3(0.0f, 0.0f, 0.0f)) *
-                          1.0f;
+        // r_ent.transform = glm::mat4x3(
+        //                       glm::vec3(1.0f, 0.0f, 0.0f),
+        //                       glm::vec3(0.0f, 0.0f, 1.0f),
+        //                       glm::vec3(0.0f, 1.0f, 0.0f),
+        //                       glm::vec3(0.0f, 0.0f, 0.0f)) *
+        //                   1.0f;
         // ) * 100'000'000.0f;
         APP_LOG(fmt::format("[INFO]Application::Application()] Loading Scene Assets \"{}\" Success",
                             (DEFAULT_ROOT_PATH / DEFAULT_SCENE_PATH).string()));

@@ -93,18 +93,6 @@ namespace ff
 
     void CommandBuffer::cmd_image_memory_transition_barrier(ImageMemoryBarrierTransitionInfo const & info)
     {
-        VkPipelineStageFlags2 src_stage = {};
-        VkAccessFlags2 src_access = {};
-        VkPipelineStageFlags2 dst_stage = {};
-        VkAccessFlags2 dst_access = {};
-        VkImageLayout src_layout = {};
-        VkImageLayout dst_layout = {};
-        u32 base_mip_level = 0;
-        u32 level_count = 1;
-        u32 base_array_layer = 0;
-        u32 layer_count = 1;
-        ImageId image_id = {};
-
         if (!device->resource_table->images.is_id_valid(info.image_id))
         {
             BACKEND_LOG("[ERROR][CommandBuffer::cmd_image_memory_transition_barrier()] Received invalid image ID");
@@ -187,6 +175,45 @@ namespace ff
             .imageExtent = info.image_extent
         };
         vkCmdCopyBufferToImage(buffer, src_buffer->buffer, dst_image->image, info.image_layout, 1, &buffer_image_copy);
+    }
+
+    void CommandBuffer::cmd_blit_image(BlitImageInfo const & info)
+    {
+        if (!device->resource_table->images.is_id_valid(info.src_image))
+        {
+            BACKEND_LOG("[ERROR][CommandBuffer::cmd_blit_image()] Received invalid src image ID");
+            throw std::runtime_error("[ERROR][CommandBuffer::cmd_blit_image()] Received invalid src image ID");
+        }
+        if (!device->resource_table->images.is_id_valid(info.dst_image))
+        {
+            BACKEND_LOG("[ERROR][CommandBuffer::cmd_blit_image()] Received invalid dst image ID");
+            throw std::runtime_error("[ERROR][CommandBuffer::cmd_blit_image()] Received invalid dst image ID");
+        }
+        auto const & src_image = device->resource_table->images.slot(info.src_image);
+        auto const & dst_image = device->resource_table->images.slot(info.dst_image);
+
+        // VkImageSubresourceLayers    srcSubresource;
+        // VkOffset3D                  srcOffsets[2];
+        // VkImageSubresourceLayers    dstSubresource;
+        // VkOffset3D                  dstOffsets[2];
+        auto const blit = VkImageBlit{
+            .srcSubresource = VkImageSubresourceLayers{
+                .aspectMask = info.src_aspect_mask,
+                .mipLevel = info.src_mip_level,
+                .baseArrayLayer = info.src_base_array_layer,
+                .layerCount = info.src_layer_count
+            },
+            .srcOffsets = { info.src_start_offset, info.src_end_offset },
+            .dstSubresource = VkImageSubresourceLayers {
+                .aspectMask = info.dst_aspect_mask,
+                .mipLevel = info.dst_mip_level,
+                .baseArrayLayer = info.dst_base_array_layer,
+                .layerCount = info.dst_layer_count
+            },
+            .dstOffsets = { info.dst_start_offset, info.dst_end_offset },
+        };
+
+        vkCmdBlitImage(buffer, src_image->image, info.src_layout, dst_image->image, info.dst_layout, 1, &blit, VkFilter::VK_FILTER_LINEAR);
     }
 
     void CommandBuffer::cmd_image_clear(ImageClearInfo const & info)

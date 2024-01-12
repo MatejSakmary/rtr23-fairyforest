@@ -30,6 +30,25 @@ namespace ff
         VkOffset3D image_offset = {};
         VkExtent3D image_extent = {};
     };
+    struct BlitImageInfo
+    {
+        ImageId src_image = {};
+        ImageId dst_image = {};
+        VkImageLayout src_layout = {};
+        VkImageLayout dst_layout = {};
+        VkImageAspectFlags src_aspect_mask = {};
+        VkImageAspectFlags dst_aspect_mask = {};
+        u32 src_mip_level = 0;
+        u32 src_base_array_layer = 0;
+        u32 src_layer_count = 1;
+        u32 dst_mip_level = 0;
+        u32 dst_base_array_layer = 0;
+        u32 dst_layer_count = 1;
+        VkOffset3D src_start_offset = {};
+        VkOffset3D src_end_offset = {};
+        VkOffset3D dst_start_offset = {};
+        VkOffset3D dst_end_offset = {};
+    };
 
     struct ImageMemoryBarrierTransitionInfo
     {
@@ -110,6 +129,7 @@ namespace ff
         void end();
         void cmd_copy_buffer_to_buffer(CopyBufferToBufferInfo const & info);
         void cmd_copy_buffer_to_image(CopyBufferToImageInfo const & info);
+        void cmd_blit_image(BlitImageInfo const & info);
         void cmd_image_memory_transition_barrier(ImageMemoryBarrierTransitionInfo const & info);
         void cmd_memory_barrier(MemoryBarrierInfo const & info);
         template <typename T>

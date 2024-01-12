@@ -214,6 +214,7 @@ struct PixelInfo
     u8 channel_count;
     u8 channel_byte_size;
     ChannelDataType channel_data_type;
+    bool is_normal;
 };
 
 constexpr static auto image_format_from_pixel_info(PixelInfo const & info) -> VkFormat
@@ -286,10 +287,33 @@ constexpr static auto image_format_from_pixel_info(PixelInfo const & info) -> Vk
         default:
             return VkFormat::VK_FORMAT_UNDEFINED;
     }
-    return translation[channel_byte_size_idx][channel_count_idx][channel_format_idx];
+    auto deduced_format = translation[channel_byte_size_idx][channel_count_idx][channel_format_idx];
+    if (info.is_normal)
+    {
+        switch (deduced_format)
+        {
+            case VkFormat::VK_FORMAT_R8_SRGB:
+            {
+                deduced_format = VkFormat::VK_FORMAT_R8_UNORM;
+                break;
+            }
+            case VkFormat::VK_FORMAT_R8G8_SRGB:
+            {
+                deduced_format = VkFormat::VK_FORMAT_R8G8_UNORM;
+                break;
+            }
+            case VkFormat::VK_FORMAT_B8G8R8A8_SRGB:
+            {
+                deduced_format = VkFormat::VK_FORMAT_B8G8R8A8_UNORM;
+                break;
+            }
+            default: break;
+        }
+    }
+    return deduced_format;
 };
 
-static auto free_image_parse_raw_image_data(RawImageData && raw_data, std::shared_ptr<ff::Device> & device) -> ParsedImageRet
+static auto free_image_parse_raw_image_data(RawImageData && raw_data, std::shared_ptr<ff::Device> & device, bool is_normal) -> ParsedImageRet
 {
     /// NOTE: Since we handle the image data loading ourselves we need to wrap the buffer with a FreeImage
     //        wrapper so that it can internally process the data
@@ -346,6 +370,7 @@ static auto free_image_parse_raw_image_data(RawImageData && raw_data, std::share
         .channel_count = static_cast<u8>(channel_count),
         .channel_byte_size = channel_info.byte_size,
         .channel_data_type = channel_info.data_type,
+        .is_normal = is_normal,
     });
 
     /// TODO: Breaks for 32bit 3 channel images (or overallocates idk)
@@ -359,6 +384,7 @@ static auto free_image_parse_raw_image_data(RawImageData && raw_data, std::share
     {
         modified_bitmap = image_bitmap;
     }
+
     defer
     {
         if (channel_count == 3) FreeImage_Unload(modified_bitmap);
@@ -373,20 +399,21 @@ static auto free_image_parse_raw_image_data(RawImageData && raw_data, std::share
     });
     std::byte * staging_dst_ptr = reinterpret_cast<std::byte *>(device->get_buffer_host_pointer(ret.src_buffer));
     memcpy(staging_dst_ptr, reinterpret_cast<std::byte *>(FreeImage_GetBits(modified_bitmap)), total_image_byte_size);
-
+    u32 mip_levels = is_normal ? 1 : static_cast<u32>(std::floor(std::log2(std::max(width, height)))) + 1;
+    VkImageUsageFlags usage_flags = VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_DST_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT;
+    if (mip_levels > 1)
+    {
+        usage_flags |= VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    }
     ret.dst_image = device->create_image({
         .dimensions = 2,
         .format = vulkan_image_format,
         .extent = {width, height, 1},
-        /// TODO: Add support for generating mip levels
-        .mip_level_count = 1,
+        .mip_level_count = mip_levels,
         .array_layer_count = 1,
         .sample_count = 1,
         /// TODO: Potentially take more flags from the user here
-        .usage =
-            VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-            VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT,
-        // VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT,
+        .usage = usage_flags,
         .alloc_flags = {},
         .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
         .name = raw_data.image_path.filename().string(),
@@ -454,7 +481,24 @@ auto AssetProcessor::load_texture(Scene & scene, u32 texture_manifest_index) -> 
     else
     {
         // FreeImage handles image loading
-        parsed_data_ret = free_image_parse_raw_image_data(std::move(raw_image_data), _device);
+        bool is_diffuse = false;
+        bool is_normal = false;
+        for (auto const & indices : texture_entry.material_manifest_indices)
+        {
+            is_diffuse |= indices.diffuse;
+            is_normal |= indices.normal;
+        }
+        if (!(is_diffuse || is_normal))
+        {
+            APP_LOG(fmt::format(
+                "[INFO][AssetProcessor::load_texture()] Skipping texture {} because"
+                "it is not referenced as normal or diffuse by any mesh",
+                texture_manifest_index));
+            return AssetLoadResultCode::SUCCESS;
+        }
+        DBG_ASSERT_TRUE_M(!(is_diffuse && is_normal),
+                          "[ERROR][AssetProcessor::load_texture()] Texture {} used both as normal map and diffuse map - not supported");
+        parsed_data_ret = free_image_parse_raw_image_data(std::move(raw_image_data), _device, is_normal);
     }
     if (auto const * error = std::get_if<AssetProcessor::AssetLoadResultCode>(&parsed_data_ret))
     {
@@ -1022,10 +1066,10 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
 #pragma region RECORD_TEXTURE_UPLOAD_COMMANDS
     auto upload_textures_command_buffer = ff::CommandBuffer(_device);
     upload_textures_command_buffer.begin();
+    // Transition texture from UNDEFINED -> VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
     for (TextureUpload const & texture_upload : _upload_texture_queue)
     {
         texture_upload.scene->_material_texture_manifest.at(texture_upload.texture_manifest_index).runtime = texture_upload.dst_image;
-        /// TODO: If we are generating mips this will need to change
         upload_textures_command_buffer.cmd_image_memory_transition_barrier({
             .src_stages = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
             .src_access = VK_ACCESS_2_NONE_KHR,
@@ -1033,10 +1077,12 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
             .dst_access = VK_ACCESS_2_TRANSFER_WRITE_BIT,
             .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED,
             .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .level_count = _device->info_image(texture_upload.dst_image).mip_level_count,
             .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
             .image_id = texture_upload.dst_image,
         });
     }
+    // Upload texture data into the texture (mip 0)
     for (TextureUpload const & texture_upload : _upload_texture_queue)
     {
         auto const image_extent = _device->info_image(texture_upload.dst_image).extent;
@@ -1049,8 +1095,55 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
             .image_extent = _device->info_image(texture_upload.dst_image).extent,
         });
     }
+    // Generate mips
     for (TextureUpload const & texture_upload : _upload_texture_queue)
     {
+        auto const mip_count = _device->info_image(texture_upload.dst_image).mip_level_count;
+        if (mip_count == 1)
+        {
+            continue;
+        }
+        auto const extent = _device->info_image(texture_upload.dst_image).extent;
+        auto mip_src_end_offset = VkOffset3D{static_cast<i32>(extent.width), static_cast<i32>(extent.height), 1};
+        for (i32 mip_level = 1; mip_level < mip_count; mip_level++)
+        {
+            // mip_level - 1 TRANSFER_DST_OPTIMAL -> TRANSFER_SRC_OPTIMAL
+            upload_textures_command_buffer.cmd_image_memory_transition_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                .src_access = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                .dst_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                .dst_access = VK_ACCESS_2_TRANSFER_READ_BIT,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                .base_mip_level = static_cast<u32>(mip_level - 1),
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .image_id = texture_upload.dst_image,
+            });
+
+            upload_textures_command_buffer.cmd_blit_image({
+                .src_image = texture_upload.dst_image,
+                .dst_image = texture_upload.dst_image,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .src_aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .dst_aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .src_mip_level = static_cast<u32>(mip_level - 1),
+                .dst_mip_level = static_cast<u32>(mip_level),
+                .src_start_offset = {0, 0, 0},
+                .src_end_offset = mip_src_end_offset,
+                .dst_start_offset = {0, 0, 0},
+                .dst_end_offset = {
+                    mip_src_end_offset.x > 1 ? mip_src_end_offset.x / 2 : 1,
+                    mip_src_end_offset.y > 1 ? mip_src_end_offset.y / 2 : 1,
+                    1,
+                },
+            });
+            mip_src_end_offset.x = mip_src_end_offset.x > 1 ? mip_src_end_offset.x / 2 : 1;
+            mip_src_end_offset.y = mip_src_end_offset.y > 1 ? mip_src_end_offset.y / 2 : 1;
+        }
+        /// NOTE: We need to transfer the last mip separately because it is in TRANSFER DST layout as opposed
+        /// to all other mips which are in TRANSFER_SRC_OPTIMAL
+        // Last mip TRANSFER_DST_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL
         upload_textures_command_buffer.cmd_image_memory_transition_barrier({
             .src_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
             .src_access = VK_ACCESS_2_TRANSFER_WRITE_BIT,
@@ -1058,6 +1151,25 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
             .dst_access = VK_ACCESS_2_NONE,
             .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            .base_mip_level = mip_count - 1,
+            .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+            .image_id = texture_upload.dst_image,
+        });
+    }
+
+    for (TextureUpload const & texture_upload : _upload_texture_queue)
+    {
+        auto const mipmap_count = _device->info_image(texture_upload.dst_image).mip_level_count;
+        auto src_access = mipmap_count == 1 ? VK_ACCESS_2_TRANSFER_WRITE_BIT : VK_ACCESS_2_TRANSFER_READ_BIT;
+        auto src_layout = mipmap_count == 1 ? VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        upload_textures_command_buffer.cmd_image_memory_transition_barrier({
+            .src_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+            .src_access = src_access,
+            .dst_stages = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+            .dst_access = VK_ACCESS_2_NONE,
+            .src_layout = src_layout,
+            .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            .level_count = std::max(mipmap_count - 1, 1u),
             .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
             .image_id = texture_upload.dst_image,
         });
@@ -1114,7 +1226,7 @@ void AssetProcessor::record_gpu_load_processing_commands(Scene & scene)
     // FIXME(msakmary) GIANT HACK
     if (dirty_material_entry_indices.size() == 0)
     {
-        for(i32 i = 0; i < scene._material_manifest.size(); i++)
+        for (i32 i = 0; i < scene._material_manifest.size(); i++)
         {
             dirty_material_entry_indices.push_back(i);
         }

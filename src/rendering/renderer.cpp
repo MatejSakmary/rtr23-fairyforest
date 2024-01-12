@@ -25,6 +25,10 @@ namespace ff
                 .enable_depth_write = 1,
                 .depth_test_compare_op = VkCompareOp::VK_COMPARE_OP_GREATER,
             },
+            .raster_info = RasterInfo{
+                .face_culling = VK_CULL_MODE_BACK_BIT,
+                .front_face_winding = VK_FRONT_FACE_COUNTER_CLOCKWISE
+            },
             .entry_point = "main",
             .push_constant_size = sizeof(DrawPc),
             .name = "prepass pipeline",
@@ -89,6 +93,9 @@ namespace ff
         repeat_sampler = context->device->create_sampler({
             .address_mode_u = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT,
             .address_mode_v = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .mip_lod_bias = -1.0f,
+            .enable_anisotropy = true,
+            .max_anisotropy = 16.0f,
             .name = "repeat sampler",
         });
 
@@ -105,32 +112,40 @@ namespace ff
         // SSAO RANDOM KERNEL
         std::mt19937 engine = std::mt19937(747474);
         std::uniform_real_distribution distribution = std::uniform_real_distribution<f32>(0.0, 1.0);
+        std::uniform_real_distribution distribution_z = std::uniform_real_distribution<f32>(0.2, 1.0);
         BufferId ssao_kernel_staging = {};
         {
             DBG_ASSERT_TRUE_M(sizeof(SSAOKernel) == sizeof(f32vec3), "SSAO Kernel was changed from f32vec3 -> ssao_kernel vector needs to be updated too");
             std::vector<f32vec3> ssao_kernel = {};
             ssao_kernel.reserve(SSAO_KERNEL_SAMPLE_COUNT);
+            auto lerp = [](f32 a, f32 b, f32 f) -> f32 { return a + f * (b - a); };
             for (i32 kernel_index = 0; kernel_index < SSAO_KERNEL_SAMPLE_COUNT; kernel_index++)
             {
                 f32vec3 const random_sample = f32vec3(
                     distribution(engine) * 2.0f - 1.0f,
                     distribution(engine) * 2.0f - 1.0f,
-                    distribution(engine));
+                    distribution_z(engine));
 
                 f32 const weight = static_cast<f32>(kernel_index) / static_cast<f32>(SSAO_KERNEL_SAMPLE_COUNT);
                 // Push samples towards origin
-                f32 const non_uniform_weight = 0.1f + (weight * weight) * 0.9f;
+                f32 const non_uniform_weight = lerp(0.1, 1.0, weight * weight);
                 f32vec3 const weighed_random_sample = non_uniform_weight * random_sample;
                 ssao_kernel.emplace_back(weighed_random_sample);
             }
 
+            // ssao_kernel.at(0) = {1.0, 0.0, 0.0};
+            // ssao_kernel.at(1) = {0.0, 1.0, 0.0};
+            // ssao_kernel.at(2) = {-1.0, 0.0, 0.0};
+            // ssao_kernel.at(3) = {0.0, -1.0, 0.0};
             ssao_kernel_staging = context->device->create_buffer({
                 .size = sizeof(SSAOKernel) * SSAO_KERNEL_SAMPLE_COUNT,
-                .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+                .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
+                // .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
                 .name = "SSAO kernel staging",
             });
 
             void * staging_ptr = context->device->get_buffer_host_pointer(ssao_kernel_staging);
+            auto * ptr = (SSAOKernel*)staging_ptr;
             std::memcpy(staging_ptr, ssao_kernel.data(), sizeof(SSAOKernel) * SSAO_KERNEL_SAMPLE_COUNT);
         }
 
