@@ -5,10 +5,48 @@
 
 layout(push_constant, scalar) uniform pc {SSAOPC data;};
 
+#define SHARED_BORDER_WIDTH 8
+#define PRELOADED_DEPTH_X_WIDTH (SHARED_BORDER_WIDTH * 2 + SSAO_X_TILE_SIZE)
+#define PRELOADED_DEPTH_Y_WIDTH (SHARED_BORDER_WIDTH * 2 + SSAO_Y_TILE_SIZE)
+shared f32 preloaded_depth [PRELOADED_DEPTH_X_WIDTH][PRELOADED_DEPTH_Y_WIDTH];
+
+#ifdef PERF_DEBUG
+shared u32 hit_count[SSAO_X_TILE_SIZE][SSAO_Y_TILE_SIZE];
+#endif
+
 layout (local_size_x = SSAO_X_TILE_SIZE, local_size_y = SSAO_Y_TILE_SIZE, local_size_z = 1) in;
+
+void populate_shared_cache()
+{
+    const i32vec2 load_coords_base = i32vec2(gl_WorkGroupID.xy) * i32vec2(SSAO_X_TILE_SIZE, SSAO_Y_TILE_SIZE) - i32vec2(SHARED_BORDER_WIDTH);
+    const i32vec2 local_tile_coords = 2 * i32vec2(gl_LocalInvocationID.xy);
+    const i32vec2 thread_load_coords = load_coords_base + local_tile_coords;
+        
+    const i32vec2 sample_00_coords = clamp(thread_load_coords + i32vec2(0, 0), i32vec2(0), i32vec2(data.extent));
+    preloaded_depth[local_tile_coords.x + 0][local_tile_coords.y + 0] = texelFetch(texture2DTable[data.depth_index], sample_00_coords, 0).r;
+    const i32vec2 sample_10_coords = clamp(thread_load_coords + i32vec2(1, 0), i32vec2(0), i32vec2(data.extent));
+    preloaded_depth[local_tile_coords.x + 1][local_tile_coords.y + 0] = texelFetch(texture2DTable[data.depth_index], sample_10_coords, 0).r;
+
+    const i32vec2 sample_01_coords = clamp(thread_load_coords + i32vec2(0, 1), i32vec2(0), i32vec2(data.extent));
+    preloaded_depth[local_tile_coords.x + 0][local_tile_coords.y + 1] = texelFetch(texture2DTable[data.depth_index], sample_01_coords, 0).r;
+    const i32vec2 sample_11_coords = clamp(thread_load_coords + i32vec2(1, 1), i32vec2(0), i32vec2(data.extent));
+    preloaded_depth[local_tile_coords.x + 1][local_tile_coords.y + 1] = texelFetch(texture2DTable[data.depth_index], sample_11_coords, 0).r;
+}
+
 void main()
 {
-    if(all(lessThan(gl_GlobalInvocationID.xy, u32vec2(data.extent))))
+    const i32vec2 wg_center = i32vec2(gl_WorkGroupID.xy) * i32vec2(SSAO_X_TILE_SIZE, SSAO_Y_TILE_SIZE) + i32vec2(SSAO_X_TILE_SIZE / 2, SSAO_Y_TILE_SIZE / 2);
+    const f32 center_depth = texelFetch(texture2DTable[data.depth_index], wg_center, 0).r;
+    const bool use_shared_cache = center_depth < 0.13;
+    const bool thread_in_image_bounds = all(lessThan(gl_GlobalInvocationID.xy, u32vec2(data.extent)));
+
+    if(use_shared_cache && thread_in_image_bounds)
+    {
+        populate_shared_cache();
+    }
+    groupMemoryBarrier();
+    barrier();
+    if(thread_in_image_bounds)
     {
         const i32vec2 coords = i32vec2(gl_GlobalInvocationID.xy);
         const f32vec2 uv = f32vec2(coords) / f32vec2(data.extent);
@@ -16,10 +54,13 @@ void main()
 
         const f32vec3 world_space_normal = imageLoad(image2DTable[data.ss_normals_index], coords).xyz;
         const f32mat4x4 view_matrix = (CameraInfoBuf(data.camera_info)[data.fif_index]).view;
-        // const f32mat4x4 normal_matrix = transpose(inverse(view_matrix));
         const f32vec3 view_space_normal = normalize((view_matrix * f32vec4(world_space_normal, 0.0)).xyz);
 
-        const f32 depth = texelFetch(texture2DTable[data.depth_index], coords, 0).r;
+        const f32 depth = use_shared_cache ? 
+            preloaded_depth[gl_LocalInvocationID.x + SHARED_BORDER_WIDTH][gl_LocalInvocationID.y + SHARED_BORDER_WIDTH] :
+            texelFetch(texture2DTable[data.depth_index], coords, 0).r;
+
+        if(depth == 0.0) { return; }
         const f32mat4x4 inverse_projection = (CameraInfoBuf(data.camera_info)[data.fif_index]).inverse_projection;
         const f32vec4 unprojected_view_pos = inverse_projection * f32vec4(ndc_xy, depth, 1.0);
         const f32vec3 view_pos = unprojected_view_pos.xyz / unprojected_view_pos.w;
@@ -34,13 +75,15 @@ void main()
         const f32mat3x3 TBN = f32mat3x3(tangent, bitangent, view_space_normal);
 
         f32 accumulated_ocluded_samples = 0.0;
-        const f32 radius = 0.2;
+        const f32 radius = 0.1;
         const f32 bias = 0.0025;
         const f32mat4x4 projection = (CameraInfoBuf(data.camera_info)[data.fif_index]).projection;
 
-        f32vec4 occluded_samples = f32vec4(0.0);
+        i32 cache_hits = use_shared_cache ? 0 : -1;
+        const i32vec2 wg_global_center =
+            i32vec2(gl_WorkGroupID.xy) * i32vec2(SSAO_X_TILE_SIZE, SSAO_Y_TILE_SIZE) + (SSAO_X_TILE_SIZE/2, SSAO_Y_TILE_SIZE/2);
+        const i32vec2 cache_max_dist_from_center = (i32vec2(SSAO_X_TILE_SIZE, SSAO_Y_TILE_SIZE) / 2) + i32vec2(SHARED_BORDER_WIDTH); 
         for(i32 ao_sample_index = 0; ao_sample_index < SSAO_KERNEL_SAMPLE_COUNT; ao_sample_index++)
-        // for(i32 ao_sample_index = 0; ao_sample_index < 4; ao_sample_index++)
         {
             const f32vec3 ssao_kernel_offset = (SSAOKernel(data.SSAO_kernel)[ao_sample_index]).sample_pos;
             const f32vec3 view_space_kernel_offset = TBN * ssao_kernel_offset;
@@ -48,10 +91,21 @@ void main()
 
             const f32vec4 projected_kernel_sample = projection * f32vec4(kernel_sample, 1.0);
             const f32vec3 ndc_kernel_sample = projected_kernel_sample.xyz / projected_kernel_sample.w;
+            // const f32vec2 screen_space_kernel_sample = clamp(ndc_kernel_sample.xy * 0.5 + 0.5, f32vec2(0.0), f32vec2(1.0));
             const f32vec2 screen_space_kernel_sample = ndc_kernel_sample.xy * 0.5 + 0.5;
 
             const i32vec2 kernel_sample_coords = i32vec2(screen_space_kernel_sample * data.extent);
-            const f32 sampled_depth = texelFetch(texture2DTable[data.depth_index], kernel_sample_coords, 0).r;
+            const i32vec2 local_sample_offset = kernel_sample_coords - wg_global_center;
+            const bool sample_hits_cache = all(lessThan(abs(local_sample_offset), cache_max_dist_from_center));
+            f32 sampled_depth = 0.0;
+            if(sample_hits_cache && use_shared_cache)
+            {
+                const i32vec2 local_offset_coords = cache_max_dist_from_center + local_sample_offset;
+                sampled_depth = preloaded_depth[local_offset_coords.x][local_offset_coords.y];
+                cache_hits += 1;
+            } else {
+                sampled_depth = texelFetch(texture2DTable[data.depth_index], kernel_sample_coords, 0).r;
+            }
             const f32vec4 unprojected_sample_view_pos = inverse_projection * f32vec4(ndc_kernel_sample.xy, sampled_depth, 1.0);
             const f32 sample_view_real_depth = unprojected_sample_view_pos.z / unprojected_sample_view_pos.w;
 
@@ -59,12 +113,29 @@ void main()
             {
                 const f32 range_check = smoothstep(0.0, 1.0, radius / abs(view_pos.z - sample_view_real_depth));
                 accumulated_ocluded_samples += 1.0 * range_check;
-                // occluded_samples[ao_sample_index] = 1.0 * range_check;
             }
         } 
         const f32 occlusion = 1.0 - (accumulated_ocluded_samples / SSAO_KERNEL_SAMPLE_COUNT);
-        // const f32 occlusion = 1.0 - (accumulated_ocluded_samples / 4);
+#ifdef PERF_DEBUG
+        f32 average_hits = 0.0;
+        {
+            hit_count[gl_LocalInvocationID.x][gl_LocalInvocationID.y] = cache_hits;
+            groupMemoryBarrier();
+            barrier();
+
+            u32 sum = 0;
+            for(i32 x = 0; x < SSAO_X_TILE_SIZE; x++)
+            {
+                for(i32 y = 0; y < SSAO_Y_TILE_SIZE; y++)
+                {
+                    sum += hit_count[x][y];
+                }
+            }
+            average_hits = f32(sum)/(SSAO_X_TILE_SIZE * SSAO_Y_TILE_SIZE);
+        }
+        imageStore(image2DTable[data.ambient_occlusion_index], i32vec2(gl_GlobalInvocationID.xy), f32vec4(occlusion, cache_hits, average_hits, depth));
+#else
         imageStore(image2DTable[data.ambient_occlusion_index], i32vec2(gl_GlobalInvocationID.xy), f32vec4(occlusion));
-        // imageStore(image2DTable[data.ambient_occlusion_index], i32vec2(gl_GlobalInvocationID.xy), occluded_samples);
+#endif
     }
 }

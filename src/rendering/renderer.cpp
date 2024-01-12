@@ -44,6 +44,10 @@ namespace ff
                 .enable_depth_write = 0,
                 .depth_test_compare_op = VkCompareOp::VK_COMPARE_OP_EQUAL,
             },
+            .raster_info = RasterInfo{
+                .face_culling = VK_CULL_MODE_BACK_BIT,
+                .front_face_winding = VK_FRONT_FACE_COUNTER_CLOCKWISE
+            },
             .entry_point = "main",
             .push_constant_size = sizeof(DrawPc),
             .name = "mesh draw pipeline",
@@ -54,7 +58,14 @@ namespace ff
             .comp_spirv_path = ".\\src\\shaders\\bin\\ssao.comp.spv",
             .entry_point = "main",
             .push_constant_size = sizeof(SSAOPC),
-            .name = "compute test pipeline",
+            .name = "ssao pipeline",
+        }});
+        pipelines.ssao_no_shared_pass = ComputePipeline({ComputePipelineCreateInfo{
+            .device = context->device,
+            .comp_spirv_path = ".\\src\\shaders\\bin\\ssao_no_shared.comp.spv",
+            .entry_point = "main",
+            .push_constant_size = sizeof(SSAOPC),
+            .name = "ssao no shared pipeline",
         }});
     }
 
@@ -79,7 +90,7 @@ namespace ff
             .name = "ss normals",
         });
         images.ambient_occlusion = context->device->create_image({
-            .format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT,
+            .format = VkFormat::VK_FORMAT_R16_SFLOAT,
             .extent = {swapchain_extent.width, swapchain_extent.height, 1},
             .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT |
                      VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT,
@@ -133,19 +144,13 @@ namespace ff
                 ssao_kernel.emplace_back(weighed_random_sample);
             }
 
-            // ssao_kernel.at(0) = {1.0, 0.0, 0.0};
-            // ssao_kernel.at(1) = {0.0, 1.0, 0.0};
-            // ssao_kernel.at(2) = {-1.0, 0.0, 0.0};
-            // ssao_kernel.at(3) = {0.0, -1.0, 0.0};
             ssao_kernel_staging = context->device->create_buffer({
                 .size = sizeof(SSAOKernel) * SSAO_KERNEL_SAMPLE_COUNT,
                 .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
-                // .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
                 .name = "SSAO kernel staging",
             });
 
             void * staging_ptr = context->device->get_buffer_host_pointer(ssao_kernel_staging);
-            auto * ptr = (SSAOKernel*)staging_ptr;
             std::memcpy(staging_ptr, ssao_kernel.data(), sizeof(SSAOKernel) * SSAO_KERNEL_SAMPLE_COUNT);
         }
 
@@ -404,6 +409,30 @@ namespace ff
         // SSAO
         {
             command_buffer.cmd_set_compute_pipeline(pipelines.ssao_pass);
+            command_buffer.cmd_set_push_constant(SSAOPC{
+                .SSAO_kernel = context->device->get_buffer_device_address(buffers.ssao_kernel),
+                .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
+                .fif_index = fif_index,
+                .ss_normals_index = images.ss_normals.index,
+                .kernel_noise_index = images.ssao_kernel_noise.index,
+                .depth_index = images.depth.index,
+                .ambient_occlusion_index = images.ambient_occlusion.index,
+                .extent = {swapchain_extent.width, swapchain_extent.height},
+            });
+            command_buffer.cmd_dispatch({
+                .x = (swapchain_extent.width + SSAO_X_TILE_SIZE - 1) / SSAO_X_TILE_SIZE,
+                .y = (swapchain_extent.height + SSAO_Y_TILE_SIZE - 1) / SSAO_Y_TILE_SIZE,
+                .z = 1,
+            });
+
+            command_buffer.cmd_memory_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .src_access = VK_ACCESS_2_SHADER_WRITE_BIT,
+                .dst_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .dst_access = VK_ACCESS_2_SHADER_WRITE_BIT,
+            });
+
+            command_buffer.cmd_set_compute_pipeline(pipelines.ssao_no_shared_pass);
             command_buffer.cmd_set_push_constant(SSAOPC{
                 .SSAO_kernel = context->device->get_buffer_device_address(buffers.ssao_kernel),
                 .camera_info = context->device->get_buffer_device_address(buffers.camera_info),

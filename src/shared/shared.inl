@@ -80,4 +80,5 @@ struct SSAOPC
     u32 depth_index;
     u32 ambient_occlusion_index;
     i32vec2 extent;
+    bool use_shared;
 };
