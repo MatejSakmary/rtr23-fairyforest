@@ -35,8 +35,8 @@ namespace ff
         BufferId ssao_kernel = {};
         BufferId particles_in = {}; 
         BufferId particles_out = {};
-        BufferId atomic_count = {};
-        BufferId last_count = {};
+        // BufferId atomic_count = {};
+        // BufferId last_count = {};
 	};
 
     struct Renderer

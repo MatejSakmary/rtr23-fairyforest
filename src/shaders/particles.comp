@@ -6,27 +6,27 @@ layout(local_size_x = PARTICLES_X_TILE_SIZE, local_size_y = 1, local_size_z = 1)
 
 layout(push_constant, scalar) uniform pc {ParticlesPC data;};
 
-layout(buffer_reference, scalar, buffer_reference_align = 4) buffer Part {f32vec3 pos; f32vec3 vel; float ttl;};
-layout(buffer_reference, scalar, buffer_reference_align = 4) buffer Counter {i32 count;};
-layout(buffer_reference, scalar, buffer_reference_align = 4) buffer LastCount {i32 count;};
+layout(buffer_reference, scalar, buffer_reference_align = 4) buffer Part {f32vec3 pos; f32vec3 vel;};
+// layout(buffer_reference, scalar, buffer_reference_align = 4) buffer Counter {i32 count;};
+// layout(buffer_reference, scalar, buffer_reference_align = 4) buffer LastCount {i32 count;};
 
 f32 delta_t = 0.016666f; // TODO(lgress) : Get the real delta time
 
 void addParticleToOutputList(f32vec3 pos, f32vec3 vel, f32 ttl) {
     // Increment atomic counter, test if we are out of memory
-    uint nr = (Counter(data.atomic_count)[0]).count;
-    (Counter(data.atomic_count)[0]).count = (Counter(data.atomic_count)[0]).count+1;
-    if (nr >= PARTICLES_COUNT) {
-        (Counter(data.atomic_count)[0]).count--;
-        return;
-    }
+    // uint nr = (Counter(data.atomic_count)[0]).count;
+    // (Counter(data.atomic_count)[0]).count = (Counter(data.atomic_count)[0]).count+1;
+    // if (nr >= PARTICLES_COUNT) {
+    //     (Counter(data.atomic_count)[0]).count--;
+    //     return;
+    // }
 
-    (Part(data.particles_out)[nr]).pos = pos;
-    (Part(data.particles_out)[nr]).vel = vel;
-    (Part(data.particles_out)[nr]).ttl = ttl;
+    // (Part(data.particles_out)[nr]).pos = pos;
+    // (Part(data.particles_out)[nr]).vel = vel;
+    // (Part(data.particles_out)[nr]).ttl = ttl;
 
     // Not 100% sure yet what is variable is supposed to get
-    (Counter(data.last_count)[0]).count = (Counter(data.atomic_count)[0]).count;
+    // (Counter(data.last_count)[0]).count = (Counter(data.atomic_count)[0]).count;
 }
 
 void main() {
@@ -41,8 +41,10 @@ void main() {
 
     f32vec3 velocity = (Part(data.particles_in)[index]).vel + delta_t * forces;
     f32vec3 position = (Part(data.particles_in)[index]).pos + delta_t * velocity;
-    f32 ttl = 1.f;
-    addParticleToOutputList(position, velocity, ttl);
+    // addParticleToOutputList(position, velocity, ttl);
+
+    (Part(data.particles_out)[index]).pos = position;
+    (Part(data.particles_out)[index]).vel = velocity;
     
     
     // f32 ttl = (Part(data.particles_in)[index]).ttl - delta_t;
