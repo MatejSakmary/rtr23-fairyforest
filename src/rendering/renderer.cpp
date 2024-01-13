@@ -25,10 +25,7 @@ namespace ff
                 .enable_depth_write = 1,
                 .depth_test_compare_op = VkCompareOp::VK_COMPARE_OP_GREATER,
             },
-            .raster_info = RasterInfo{
-                .face_culling = VK_CULL_MODE_BACK_BIT,
-                .front_face_winding = VK_FRONT_FACE_COUNTER_CLOCKWISE
-            },
+            .raster_info = RasterInfo{.face_culling = VK_CULL_MODE_BACK_BIT, .front_face_winding = VK_FRONT_FACE_COUNTER_CLOCKWISE},
             .entry_point = "main",
             .push_constant_size = sizeof(DrawPc),
             .name = "prepass pipeline",
@@ -44,10 +41,7 @@ namespace ff
                 .enable_depth_write = 0,
                 .depth_test_compare_op = VkCompareOp::VK_COMPARE_OP_EQUAL,
             },
-            .raster_info = RasterInfo{
-                .face_culling = VK_CULL_MODE_BACK_BIT,
-                .front_face_winding = VK_FRONT_FACE_COUNTER_CLOCKWISE
-            },
+            .raster_info = RasterInfo{.face_culling = VK_CULL_MODE_BACK_BIT, .front_face_winding = VK_FRONT_FACE_COUNTER_CLOCKWISE},
             .entry_point = "main",
             .push_constant_size = sizeof(DrawPc),
             .name = "mesh draw pipeline",
@@ -59,13 +53,6 @@ namespace ff
             .entry_point = "main",
             .push_constant_size = sizeof(SSAOPC),
             .name = "ssao pipeline",
-        }});
-        pipelines.ssao_no_shared_pass = ComputePipeline({ComputePipelineCreateInfo{
-            .device = context->device,
-            .comp_spirv_path = ".\\src\\shaders\\bin\\ssao_no_shared.comp.spv",
-            .entry_point = "main",
-            .push_constant_size = sizeof(SSAOPC),
-            .name = "ssao no shared pipeline",
         }});
     }
 
@@ -129,7 +116,8 @@ namespace ff
             DBG_ASSERT_TRUE_M(sizeof(SSAOKernel) == sizeof(f32vec3), "SSAO Kernel was changed from f32vec3 -> ssao_kernel vector needs to be updated too");
             std::vector<f32vec3> ssao_kernel = {};
             ssao_kernel.reserve(SSAO_KERNEL_SAMPLE_COUNT);
-            auto lerp = [](f32 a, f32 b, f32 f) -> f32 { return a + f * (b - a); };
+            auto lerp = [](f32 a, f32 b, f32 f) -> f32
+            { return a + f * (b - a); };
             for (i32 kernel_index = 0; kernel_index < SSAO_KERNEL_SAMPLE_COUNT; kernel_index++)
             {
                 f32vec3 const random_sample = f32vec3(
@@ -424,30 +412,6 @@ namespace ff
                 .y = (swapchain_extent.height + SSAO_Y_TILE_SIZE - 1) / SSAO_Y_TILE_SIZE,
                 .z = 1,
             });
-
-            command_buffer.cmd_memory_barrier({
-                .src_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                .src_access = VK_ACCESS_2_SHADER_WRITE_BIT,
-                .dst_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                .dst_access = VK_ACCESS_2_SHADER_WRITE_BIT,
-            });
-
-            command_buffer.cmd_set_compute_pipeline(pipelines.ssao_no_shared_pass);
-            command_buffer.cmd_set_push_constant(SSAOPC{
-                .SSAO_kernel = context->device->get_buffer_device_address(buffers.ssao_kernel),
-                .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
-                .fif_index = fif_index,
-                .ss_normals_index = images.ss_normals.index,
-                .kernel_noise_index = images.ssao_kernel_noise.index,
-                .depth_index = images.depth.index,
-                .ambient_occlusion_index = images.ambient_occlusion.index,
-                .extent = {swapchain_extent.width, swapchain_extent.height},
-            });
-            command_buffer.cmd_dispatch({
-                .x = (swapchain_extent.width + SSAO_X_TILE_SIZE - 1) / SSAO_X_TILE_SIZE,
-                .y = (swapchain_extent.height + SSAO_Y_TILE_SIZE - 1) / SSAO_Y_TILE_SIZE,
-                .z = 1,
-            });
         }
 
         // depth                SHADER_READ_ONLY_OPTIMAL -> DEPTH_ATTACHMENT_OPTIMAL
@@ -484,7 +448,7 @@ namespace ff
                     .layout = VkImageLayout::VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
                     .load_op = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR,
                     .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE,
-                    .clear_value = {.color = {.float32 = {0.5f, 0.7f, 1.0f, 1.0f}}},
+                    .clear_value = {.color = {.float32 = {SKY_COLOR.x, SKY_COLOR.y, SKY_COLOR.z, 1.0f}}},
                 }},
                 .depth_attachment = RenderingAttachmentInfo{
                     .image_id = images.depth,
@@ -502,13 +466,16 @@ namespace ff
                     .scene_descriptor = draw_commands.scene_descriptor,
                     .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
                     .ss_normals_index = images.ss_normals.index,
+                    .ssao_index = images.ambient_occlusion.index,
                     .fif_index = fif_index,
                     .mesh_index = draw_command.mesh_idx,
                     .sampler_id = repeat_sampler.index,
                     .sun_direction = glm::normalize(f32vec3(
                         std::cos(f32(accum) / 5.0f),
                         std::sin(f32(accum) / 5.0f),
-                        1.0f))});
+                        1.0f)),
+                    .enable_ao = static_cast<u32>(draw_commands.enable_ao),
+                });
                 command_buffer.cmd_draw({
                     .vertex_count = draw_command.index_count,
                     .instance_count = draw_command.instance_count,

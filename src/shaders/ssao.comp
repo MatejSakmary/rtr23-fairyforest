@@ -37,15 +37,18 @@ void main()
 {
     const i32vec2 wg_center = i32vec2(gl_WorkGroupID.xy) * i32vec2(SSAO_X_TILE_SIZE, SSAO_Y_TILE_SIZE) + i32vec2(SSAO_X_TILE_SIZE / 2, SSAO_Y_TILE_SIZE / 2);
     const f32 center_depth = texelFetch(texture2DTable[data.depth_index], wg_center, 0).r;
-    const bool use_shared_cache = center_depth < 0.13;
+    const bool use_shared_cache = center_depth < 0.1;
     const bool thread_in_image_bounds = all(lessThan(gl_GlobalInvocationID.xy, u32vec2(data.extent)));
 
     if(use_shared_cache && thread_in_image_bounds)
     {
         populate_shared_cache();
     }
-    groupMemoryBarrier();
-    barrier();
+    if(use_shared_cache)
+    {
+        groupMemoryBarrier();
+        barrier();
+    }
     if(thread_in_image_bounds)
     {
         const i32vec2 coords = i32vec2(gl_GlobalInvocationID.xy);
@@ -75,7 +78,7 @@ void main()
         const f32mat3x3 TBN = f32mat3x3(tangent, bitangent, view_space_normal);
 
         f32 accumulated_ocluded_samples = 0.0;
-        const f32 radius = 0.1;
+        const f32 radius = 0.2;
         const f32 bias = 0.0025;
         const f32mat4x4 projection = (CameraInfoBuf(data.camera_info)[data.fif_index]).projection;
 

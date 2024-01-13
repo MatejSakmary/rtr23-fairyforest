@@ -2,6 +2,8 @@
 #pragma once
 #endif //__cplusplus
 #include "../backend/backend.inl"
+
+#define SKY_COLOR f32vec3(0.0015, 0.0015, 0.0075)
 BUFFER_REF(4)
 SceneDescriptor
 {
@@ -51,10 +53,12 @@ struct DrawPc
     VkDeviceAddress scene_descriptor;
     VkDeviceAddress camera_info;
     u32 ss_normals_index;
+    u32 ssao_index;
     u32 fif_index;
     u32 mesh_index;
     u32 sampler_id;
     f32vec3 sun_direction;
+    u32 enable_ao;
 };
 
 // SSAO 

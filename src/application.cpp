@@ -2,6 +2,7 @@
 
 Application::Application()
     : keep_running(true),
+      enable_ao(true),
       window{std::make_unique<Window>(1920, 1080, "Fairy Forest")},
       context{std::make_shared<Context>(window->get_handle())},
       renderer{std::make_unique<ff::Renderer>(context)},
@@ -85,13 +86,6 @@ Application::Application()
     {
         auto const r_id = std::get<RenderEntityId>(result);
         RenderEntity & r_ent = *scene->_render_entities.slot(r_id);
-        // r_ent.transform = glm::mat4x3(
-        //                       glm::vec3(1.0f, 0.0f, 0.0f),
-        //                       glm::vec3(0.0f, 0.0f, 1.0f),
-        //                       glm::vec3(0.0f, 1.0f, 0.0f),
-        //                       glm::vec3(0.0f, 0.0f, 0.0f)) *
-        //                   1.0f;
-        // ) * 100'000'000.0f;
         APP_LOG(fmt::format("[INFO]Application::Application()] Loading Scene Assets \"{}\" Success",
                             (DEFAULT_ROOT_PATH / DEFAULT_SCENE_PATH).string()));
     }
@@ -114,11 +108,8 @@ auto Application::run() -> i32
             renderer->resize();
         }
         update();
-
         camera.update_position(delta_time);
-        // renderer->draw_frame(commands, camera.info, delta_time);
         renderer->draw_frame(commands, camera_controller.cam_info, delta_time);
-        // APP_LOG(fmt::format("{} {} {}", camera_controller.cam_info.pos.x, camera_controller.cam_info.pos.y, camera_controller.cam_info.pos.z));
         keep_running &= !static_cast<bool>(glfwWindowShouldClose(window->glfw_handle));
     }
     return 0;
@@ -129,6 +120,11 @@ void Application::update()
     if (window->size.x == 0 || window->size.y == 0)
     {
         return;
+    }
+    if(window->key_just_pressed(GLFW_KEY_O))
+    {
+        enable_ao = !enable_ao;
+        commands.enable_ao = enable_ao;
     }
     camera_controller.process_input(*window, delta_time);
     camera_controller.update_matrices(*window);

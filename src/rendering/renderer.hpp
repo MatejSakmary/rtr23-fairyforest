@@ -20,7 +20,6 @@ namespace ff
 		RasterPipeline main_pass = {};
 
 		ComputePipeline ssao_pass = {};
-		ComputePipeline ssao_no_shared_pass = {};
 	};
 
 	struct Images

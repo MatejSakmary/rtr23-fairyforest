@@ -23,6 +23,7 @@ struct Application
     std::chrono::time_point<std::chrono::steady_clock> last_time_point = {};
 
     bool keep_running = {};
+    bool enable_ao = {};
     std::unique_ptr<Window> window = {};
     std::shared_ptr<Context> context = {};
     std::unique_ptr<ff::Renderer> renderer = {};
