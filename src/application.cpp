@@ -2,7 +2,7 @@
 
 Application::Application()
     : keep_running(true),
-      enable_ao(true),
+      enable_ao{1},
       window{std::make_unique<Window>(1920, 1080, "Fairy Forest")},
       context{std::make_shared<Context>(window->get_handle())},
       renderer{std::make_unique<ff::Renderer>(context)},
@@ -109,6 +109,7 @@ auto Application::run() -> i32
         }
         update();
         camera.update_position(delta_time);
+        commands.enable_ao = enable_ao;
         renderer->draw_frame(commands, camera_controller.cam_info, delta_time);
         keep_running &= !static_cast<bool>(glfwWindowShouldClose(window->glfw_handle));
     }
@@ -123,8 +124,7 @@ void Application::update()
     }
     if(window->key_just_pressed(GLFW_KEY_O))
     {
-        enable_ao = !enable_ao;
-        commands.enable_ao = enable_ao;
+        enable_ao = 1 - enable_ao;
     }
     camera_controller.process_input(*window, delta_time);
     camera_controller.update_matrices(*window);

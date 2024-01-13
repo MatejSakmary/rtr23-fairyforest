@@ -120,7 +120,7 @@ struct DrawCommand
 };
 struct SceneDrawCommands 
 {
-    bool enable_ao = {};
+    u32 enable_ao = {};
     VkDeviceAddress scene_descriptor = {};
     std::vector<DrawCommand> draw_commands = {};
 };
