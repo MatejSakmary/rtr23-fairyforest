@@ -97,8 +97,23 @@ void CameraController::update_matrices(Window & window)
     prespective[1][1] *= -1.0f;
     cam_info.proj = prespective;
     cam_info.view = glm::lookAt(position, position + forward, up);
-    auto const view_quat = glm::quat_cast(cam_info.view);
-    // APP_LOG(fmt::format("view quat {} {} {} {}", view_quat.w, view_quat.x, view_quat.y, view_quat.z));
+
+    glm::vec3 right;
+    if(forward.x != 0 && forward.y != 0)      { right = glm::vec3(forward.y, -forward.x, 0.0f); }
+    else if(forward.x != 0 && forward.z != 0) { right = glm::vec3(-forward.z, 0.0f, forward.x); }
+    else                                      { right = glm::vec3(0.0f, -forward.z, forward.y); }
+
+    glm::vec3 up_ = glm::normalize(glm::cross(right, forward));
+    glm::vec3 right_ = glm::normalize(glm::cross(forward, up));
+
+    f32 fov_tan = glm::tan(glm::radians(fov) / 2.0f);
+
+    auto right_aspect_fov_correct = right_ * (f32(window.get_width()) / f32(window.get_height())) * fov_tan;
+    auto up_fov_correct = glm::normalize(up_) * fov_tan;
+
+    cam_info.frust_front = forward;
+    cam_info.frust_top_offset = -up_fov_correct;
+    cam_info.frust_right_offset = right_aspect_fov_correct;
     cam_info.viewproj = cam_info.proj * cam_info.view;
     cam_info.pos = position;
     cam_info.up = up;

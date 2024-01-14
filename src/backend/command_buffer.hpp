@@ -118,6 +118,7 @@ namespace ff
         u32 y = 0;
         u32 z = 0;
     };
+
     struct CommandBuffer
     {
       public:
@@ -141,6 +142,7 @@ namespace ff
         void cmd_dispatch(DispatchInfo const & info);
         void cmd_begin_renderpass(BeginRenderpassInfo const & info);
         void cmd_end_renderpass();
+        void cmd_set_viewport(VkViewport const & info);
         auto get_recorded_command_buffer() -> VkCommandBuffer;
 
       private:

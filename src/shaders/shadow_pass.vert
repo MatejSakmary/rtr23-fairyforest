@@ -2,7 +2,7 @@
 #extension GL_GOOGLE_include_directive : require
 #include "src/shared/shared.inl"
 
-layout(push_constant, scalar) uniform pc { DrawPc data; };
+layout(push_constant, scalar) uniform push { ShadowPC pc; };
 
 layout(buffer_reference, scalar, buffer_reference_align = 4) buffer Transform { f32mat4x3 trans;  };
 layout(buffer_reference, scalar, buffer_reference_align = 4) buffer Index     { u32 idx;          };
@@ -10,9 +10,8 @@ layout(buffer_reference, scalar, buffer_reference_align = 4) buffer Position  { 
 layout(buffer_reference, scalar, buffer_reference_align = 4) buffer UV        { f32vec2 uv;       };
 
 layout(location = 0) out f32vec2 out_uv;
-layout(location = 1) out flat u32 albedo_index;
-layout(location = 2) out f32vec3 world_position;
-layout(location = 3) out f32 viewspace_depth;
+layout(location = 1) out f32 viewspace_depth;
+layout(location = 2) out flat u32 albedo_index;
 
 mat4 mat_4x3_to_4x4(mat4x3 in_mat)
 {
@@ -29,8 +28,8 @@ void main()
     const u32 index = gl_VertexIndex;
     const u32 instance = gl_InstanceIndex;
 
-    SceneDescriptor scene_descriptor = SceneDescriptor(data.scene_descriptor);
-    MeshDescriptor mesh_descriptor = MeshDescriptor(scene_descriptor.mesh_descriptors_start)[data.mesh_index];
+    SceneDescriptor scene_descriptor = SceneDescriptor(pc.scene_descriptor);
+    MeshDescriptor mesh_descriptor = MeshDescriptor(scene_descriptor.mesh_descriptors_start)[pc.mesh_index];
     MaterialDescriptor material_descriptor = MaterialDescriptor(scene_descriptor.material_descriptors_start)[mesh_descriptor.material_index];
 
     const f32mat4x3 transform = (Transform(scene_descriptor.transforms_start)[mesh_descriptor.transforms_offset + instance]).trans;
@@ -41,10 +40,10 @@ void main()
 
     albedo_index = material_descriptor.albedo_index;
     out_uv = uv;
-    const f32mat4x4 view_projection = (CameraInfoBuf(data.camera_info)[data.fif_index]).view_projection;
-    const f32mat4x4 view = (CameraInfoBuf(data.camera_info)[data.fif_index]).view;
+
+    const f32mat4x4 view = (ShadowmapCascadeData(pc.cascade_data)[pc.cascade_index]).cascade_view_matrix;
+    const f32mat4x4 projection = (ShadowmapCascadeData(pc.cascade_data)[pc.cascade_index]).cascade_proj_matrix;
     const f32mat4x4 model = mat_4x3_to_4x4(transform);
-    world_position = (model * f32vec4(position, 1.0)).xyz;
-    viewspace_depth = -(view * model * f32vec4(position, 1.0)).z;
-    gl_Position = view_projection * model * f32vec4(position, 1.0);
+    viewspace_depth = (view * model * f32vec4(position, 1.0)).z;
+    gl_Position = projection * view * model * f32vec4(position, 1.0);
 }

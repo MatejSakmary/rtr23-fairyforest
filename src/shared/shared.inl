@@ -3,7 +3,8 @@
 #endif //__cplusplus
 #include "../backend/backend.inl"
 
-#define SKY_COLOR f32vec3(0.0015, 0.0015, 0.0075)
+#define SKY_COLOR f32vec3(0.0015 * 0.1, 0.0015 * 0.1, 0.0075 * 0.1)
+
 BUFFER_REF(4)
 SceneDescriptor
 {
@@ -40,6 +41,10 @@ MeshDescriptor
 BUFFER_REF(4)
 CameraInfoBuf
 {
+    f32vec3 position;
+    f32vec3 frust_right_offset;
+    f32vec3 frust_top_offset;
+    f32vec3 frust_front;
     f32mat4x4 view;
     f32mat4x4 inverse_view;
     f32mat4x4 projection;
@@ -48,15 +53,27 @@ CameraInfoBuf
     f32mat4x4 inverse_view_projection;
 };
 
+BUFFER_REF(4)
+ShadowmapCascadeData
+{
+    f32mat4x4 cascade_view_matrix;
+    f32mat4x4 cascade_proj_matrix;
+    f32 cascade_far_depth;
+    f32 far_plane;
+};
+
 struct DrawPc
 {
     VkDeviceAddress scene_descriptor;
     VkDeviceAddress camera_info;
+    VkDeviceAddress cascade_data;
     u32 ss_normals_index;
     u32 ssao_index;
+    u32 esm_shadowmap_index;
     u32 fif_index;
     u32 mesh_index;
     u32 sampler_id;
+    u32 shadow_sampler_id;
     f32vec3 sun_direction;
     u32 enable_ao;
 };
@@ -85,4 +102,58 @@ struct SSAOPC
     u32 ambient_occlusion_index;
     i32vec2 extent;
     bool use_shared;
+};
+
+// Shadows
+#define NUM_CASCADES 4
+#define SHADOWMAP_RESOLUTION 1024
+#define DEPTH_PASS_TILE_SIZE 32
+#define DEPTH_PASS_WG_SIZE (u32vec2(DEPTH_PASS_TILE_SIZE))
+#define DEPTH_PASS_THREAD_READ_COUNT (u32vec2(2))
+#define DEPTH_PASS_WG_READS_PER_AXIS (DEPTH_PASS_WG_SIZE * DEPTH_PASS_THREAD_READ_COUNT)
+
+#define ESM_BLUR_WORKGROUP_SIZE 64
+#define ESM_FACTOR 100.0
+
+#define LAMBDA 0.76
+BUFFER_REF(4)
+DepthLimits
+{
+    f32vec2 limits;
+};
+
+struct AnalyzeDepthPC
+{
+    VkDeviceAddress depth_limits;
+    u32vec2 depth_dimensions;
+    u32 sampler_id;
+    u32 prev_thread_count;
+    u32 depth_index;
+};
+
+struct WriteShadowMatricesPC
+{
+    VkDeviceAddress camera_info;
+    u32 fif_index;
+    VkDeviceAddress depth_limits;
+    VkDeviceAddress cascade_data;
+    f32vec3 sun_direction;
+};
+
+struct ShadowPC
+{
+    VkDeviceAddress scene_descriptor;
+    VkDeviceAddress cascade_data;
+    u32 mesh_index;
+    u32 sampler_id;
+    u32 cascade_index;
+};
+
+struct ESMShadowPC
+{
+    u32 tmp_esm_index;
+    u32 esm_index;
+    u32 shadowmap_index;
+    u32 cascade_index;
+    u32vec2 offset;
 };

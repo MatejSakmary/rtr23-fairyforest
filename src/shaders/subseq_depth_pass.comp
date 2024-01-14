@@ -1,0 +1,84 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "src/shared/shared.inl"
+
+layout(push_constant, scalar) uniform push {AnalyzeDepthPC pc;};
+
+// If subgroup size is less than 32 this will be too small (32 here represents subgroup size)
+// TODO(msakmary) perhaps use specialization constants for this
+shared f32vec2 min_max_depth[DEPTH_PASS_TILE_SIZE * DEPTH_PASS_TILE_SIZE / 32];
+
+// Calculate the min/max depth values for the entire workgroup and store them in the global buffer
+void workgroup_min_max_depth(f32vec2 thread_min_max_depth)
+{
+    f32 min_depth = subgroupMin(thread_min_max_depth.x);
+    f32 max_depth = subgroupMax(thread_min_max_depth.y);
+
+    if(subgroupElect()) { min_max_depth[gl_SubgroupID] = f32vec2(min_depth, max_depth); }
+    memoryBarrierShared();
+    barrier();
+
+    // only the first subgroup will now read the values from shared memory and again do subgroup min
+    if(gl_SubgroupID == 0) 
+    {
+        // cutoff in case warp is bigger than 32 threads
+        u32 cutoff = DEPTH_PASS_TILE_SIZE * DEPTH_PASS_TILE_SIZE / gl_SubgroupSize;
+        if(gl_SubgroupInvocationID < cutoff) 
+        { 
+            f32vec2 min_max_depth_value = min_max_depth[gl_SubgroupInvocationID];
+            min_depth = subgroupMin(min_max_depth_value.x);
+            max_depth = subgroupMax(min_max_depth_value.y);
+
+            u32 global_array_index = gl_WorkGroupID.y * gl_NumWorkGroups.x + gl_WorkGroupID.x;
+
+            // only the 0th thread in 0th warp writes out the min for the entire workgroup
+            if(subgroupElect()) 
+            {
+                (DepthLimits(pc.depth_limits)[global_array_index]).limits = f32vec2(min_depth, max_depth);
+            }
+        }
+    }
+}
+
+layout(local_size_x = DEPTH_PASS_TILE_SIZE, local_size_y = DEPTH_PASS_TILE_SIZE, local_size_z = 1) in;
+void main()
+{
+    u32 work_group_threads = DEPTH_PASS_TILE_SIZE * DEPTH_PASS_TILE_SIZE;
+    u32 workgroup_offset = gl_WorkGroupID.x * work_group_threads;
+    u32 _subgroup_offset = gl_SubgroupID * gl_SubgroupSize;
+
+    u32 into_global_index = workgroup_offset + _subgroup_offset + gl_SubgroupInvocationID;
+    // Each thread processes 4 values
+    into_global_index *= 4; 
+
+    f32vec4 read_min_depth_values;
+    f32vec4 read_max_depth_values;
+
+    // Read values from global array into local variable
+    into_global_index = min(into_global_index, pc.prev_thread_count - 1);
+    read_min_depth_values.x = (DepthLimits(pc.depth_limits)[into_global_index]).limits.x;
+    read_max_depth_values.x = (DepthLimits(pc.depth_limits)[into_global_index]).limits.y;
+    into_global_index = min(into_global_index + 1, pc.prev_thread_count - 1);
+    read_min_depth_values.y = (DepthLimits(pc.depth_limits)[into_global_index]).limits.x;
+    read_max_depth_values.y = (DepthLimits(pc.depth_limits)[into_global_index]).limits.y;
+    into_global_index = min(into_global_index + 1, pc.prev_thread_count - 1);
+    read_min_depth_values.z = (DepthLimits(pc.depth_limits)[into_global_index]).limits.x;
+    read_max_depth_values.z = (DepthLimits(pc.depth_limits)[into_global_index]).limits.y;
+    into_global_index = min(into_global_index + 1, pc.prev_thread_count - 1);
+    read_min_depth_values.w = (DepthLimits(pc.depth_limits)[into_global_index]).limits.x;
+    read_max_depth_values.w = (DepthLimits(pc.depth_limits)[into_global_index]).limits.y;
+
+    f32vec2 thread_min_max_depth;
+
+    thread_min_max_depth.x = min(
+        min(read_min_depth_values.x, read_min_depth_values.y),
+        min(read_min_depth_values.z, read_min_depth_values.w)
+    );
+
+    thread_min_max_depth.y = max(
+        max(read_max_depth_values.x, read_max_depth_values.y),
+        max(read_max_depth_values.z, read_max_depth_values.w)
+    );
+
+    workgroup_min_max_depth(thread_min_max_depth);
+}

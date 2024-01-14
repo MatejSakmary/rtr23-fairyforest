@@ -31,6 +31,25 @@ namespace ff
             .name = "prepass pipeline",
         }});
 
+        pipelines.shadowmap_pass = RasterPipeline({RasterPipelineCreateInfo{
+            .device = context->device,
+            .vert_spirv_path = ".\\src\\shaders\\bin\\shadow_pass.vert.spv",
+            .frag_spirv_path = ".\\src\\shaders\\bin\\shadow_pass.frag.spv",
+            .depth_test = DepthTestInfo{
+                .depth_attachment_format = VkFormat::VK_FORMAT_D32_SFLOAT,
+                .enable_depth_write = 1,
+                .depth_test_compare_op = VkCompareOp::VK_COMPARE_OP_LESS_OR_EQUAL,
+            },
+            .raster_info = RasterInfo{
+                .face_culling = VK_CULL_MODE_BACK_BIT,
+                .front_face_winding = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                .depth_clamp_enable = true,
+            },
+            .entry_point = "main",
+            .push_constant_size = sizeof(ShadowPC),
+            .name = "shadwo pass pipeline",
+        }});
+
         pipelines.main_pass = RasterPipeline({RasterPipelineCreateInfo{
             .device = context->device,
             .vert_spirv_path = ".\\src\\shaders\\bin\\mesh_draw.vert.spv",
@@ -41,7 +60,10 @@ namespace ff
                 .enable_depth_write = 0,
                 .depth_test_compare_op = VkCompareOp::VK_COMPARE_OP_EQUAL,
             },
-            .raster_info = RasterInfo{.face_culling = VK_CULL_MODE_BACK_BIT, .front_face_winding = VK_FRONT_FACE_COUNTER_CLOCKWISE},
+            .raster_info = RasterInfo{
+                .face_culling = VK_CULL_MODE_BACK_BIT,
+                .front_face_winding = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+            },
             .entry_point = "main",
             .push_constant_size = sizeof(DrawPc),
             .name = "mesh draw pipeline",
@@ -53,6 +75,46 @@ namespace ff
             .entry_point = "main",
             .push_constant_size = sizeof(SSAOPC),
             .name = "ssao pipeline",
+        }});
+
+        pipelines.first_depth_pass = ComputePipeline({ComputePipelineCreateInfo{
+            .device = context->device,
+            .comp_spirv_path = ".\\src\\shaders\\bin\\first_depth_pass.comp.spv",
+            .entry_point = "main",
+            .push_constant_size = sizeof(AnalyzeDepthPC),
+            .name = "first depth pass pipeline",
+        }});
+
+        pipelines.subseq_depth_pass = ComputePipeline({ComputePipelineCreateInfo{
+            .device = context->device,
+            .comp_spirv_path = ".\\src\\shaders\\bin\\subseq_depth_pass.comp.spv",
+            .entry_point = "main",
+            .push_constant_size = sizeof(AnalyzeDepthPC),
+            .name = "subsequent depth pass pipeline",
+        }});
+
+        pipelines.write_shadow_matrices = ComputePipeline({ComputePipelineCreateInfo{
+            .device = context->device,
+            .comp_spirv_path = ".\\src\\shaders\\bin\\write_shadow_matrices.comp.spv",
+            .entry_point = "main",
+            .push_constant_size = sizeof(WriteShadowMatricesPC),
+            .name = "write shadow matrices pipeline",
+        }});
+
+        pipelines.first_esm_pass = ComputePipeline({ComputePipelineCreateInfo{
+            .device = context->device,
+            .comp_spirv_path = ".\\src\\shaders\\bin\\esm_first_pass.comp.spv",
+            .entry_point = "main",
+            .push_constant_size = sizeof(ESMShadowPC),
+            .name = "first esm pass pipeline",
+        }});
+
+        pipelines.second_esm_pass = ComputePipeline({ComputePipelineCreateInfo{
+            .device = context->device,
+            .comp_spirv_path = ".\\src\\shaders\\bin\\esm_second_pass.comp.spv",
+            .entry_point = "main",
+            .push_constant_size = sizeof(ESMShadowPC),
+            .name = "second esm pass pipeline",
         }});
     }
 
@@ -84,6 +146,15 @@ namespace ff
             .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
             .name = "ambient occlusion",
         });
+
+        u32vec2 limits_size;
+        u32vec2 wg_size = DEPTH_PASS_WG_READS_PER_AXIS;
+        limits_size.x = (swapchain_extent.width + wg_size.x - 1) / wg_size.x;
+        limits_size.y = (swapchain_extent.height + wg_size.y - 1) / wg_size.y;
+        buffers.depth_limits = context->device->create_buffer({
+            .size = static_cast<u32>(sizeof(DepthLimits) * limits_size.x * limits_size.y),
+            .name = "depth limits",
+        });
     }
 
     void Renderer::create_resolution_indep_resources()
@@ -97,6 +168,17 @@ namespace ff
             .name = "repeat sampler",
         });
 
+        clamp_sampler = context->device->create_sampler({
+            .address_mode_u = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            .address_mode_v = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            .name = "linear sampler",
+        });
+
+        no_mip_sampler = context->device->create_sampler({
+            .max_lod = 0.0f,
+            .name = "no mip sampler",
+        });
+
         buffers.camera_info = context->device->create_buffer({
             .size = sizeof(CameraInfoBuf) * (FRAMES_IN_FLIGHT + 1),
             .name = "camera info buffer",
@@ -105,6 +187,44 @@ namespace ff
         buffers.ssao_kernel = context->device->create_buffer({
             .size = sizeof(SSAOKernel) * SSAO_KERNEL_SAMPLE_COUNT,
             .name = "SSAO kernel",
+        });
+
+        buffers.cascade_data = context->device->create_buffer({
+            .size = sizeof(ShadowmapCascadeData) * NUM_CASCADES,
+            .name = "shadowmap cascade data",
+        });
+
+        // Shadowmap textures
+        DBG_ASSERT_TRUE_M(NUM_CASCADES <= 8, "[ERROR][Renderer::create_resolution_indep_resources()] More than 8 cascades not supported");
+        auto const resolution_multiplier = resolution_table[NUM_CASCADES - 1];
+        images.shadowmap_cascades = context->device->create_image({
+            .format = VkFormat::VK_FORMAT_D32_SFLOAT,
+            .extent = {
+                SHADOWMAP_RESOLUTION * resolution_multiplier.x,
+                SHADOWMAP_RESOLUTION * resolution_multiplier.y, 1},
+            .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT,
+            .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT,
+            .name = "shadowmap",
+        });
+
+        images.esm_cascades = context->device->create_image({
+            .format = VkFormat::VK_FORMAT_R16_UNORM,
+            .extent = {SHADOWMAP_RESOLUTION, SHADOWMAP_RESOLUTION, 1},
+            .array_layer_count = NUM_CASCADES,
+            .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT |
+                     VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT,
+            .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+            .name = "esm shadowmap",
+        });
+
+        images.esm_tmp_cascades = context->device->create_image({
+            .format = VkFormat::VK_FORMAT_R16_UNORM,
+            .extent = {SHADOWMAP_RESOLUTION, SHADOWMAP_RESOLUTION, 1},
+            .array_layer_count = NUM_CASCADES,
+            .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT |
+                     VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT,
+            .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+            .name = "esm tmp shadowmap",
         });
 
         // SSAO RANDOM KERNEL
@@ -239,6 +359,10 @@ namespace ff
     {
         PreciseStopwatch stopwatch = {};
         static f32 accum = 0.0f;
+        f32vec3 const sun_direction = glm::normalize(f32vec3(
+            std::cos(f32(20.0f) / 5.0f),
+            std::sin(f32(20.0f) / 5.0f),
+            1.0f));
         auto swapchain_image = context->swapchain->acquire_next_image();
         u32 const fif_index = frame_index % (FRAMES_IN_FLIGHT + 1);
 
@@ -252,6 +376,10 @@ namespace ff
         });
         void * staging_memory = context->device->get_buffer_host_pointer(camera_info_staging_buffer);
         CameraInfoBuf curr_frame_camera = {
+            .position = camera_info.pos,
+            .frust_right_offset = camera_info.frust_right_offset,
+            .frust_top_offset = camera_info.frust_top_offset,
+            .frust_front = camera_info.frust_front,
             .view = camera_info.view,
             .inverse_view = glm::inverse(camera_info.view),
             .projection = camera_info.proj,
@@ -281,6 +409,10 @@ namespace ff
         // ss_normals           UNDEFINED -> COLOR_ATTACHMENT_OPTIMAL
         // ambient_occlusion    UNDEFINED -> GENERAL
         // depth                UNDEFINED -> DEPTH_ATTACHMENT_OPTIMAL
+        // shadowmap_cascades   UNDEFINED -> DEPTH_ATTACHMENT_OPTIMAL
+        // esm_shadowmap        UNDEFINED -> GENERAL
+        // esm_cascades         UNDEFINED -> GENERAL
+        // esm_tmp_cascades     UNDEFINED -> GENERAL
         {
             command_buffer.cmd_image_memory_transition_barrier({
                 .src_stages = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
@@ -324,6 +456,41 @@ namespace ff
                 .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
                 .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT,
                 .image_id = images.depth,
+            });
+
+            command_buffer.cmd_image_memory_transition_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
+                .src_access = VK_ACCESS_2_NONE_KHR,
+                .dst_stages = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
+                .dst_access = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT,
+                .image_id = images.shadowmap_cascades,
+            });
+
+            command_buffer.cmd_image_memory_transition_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
+                .src_access = VK_ACCESS_2_NONE_KHR,
+                .dst_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .dst_access = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
+                .layer_count = NUM_CASCADES,
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .image_id = images.esm_cascades,
+            });
+
+            command_buffer.cmd_image_memory_transition_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
+                .src_access = VK_ACCESS_2_NONE_KHR,
+                .dst_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .dst_access = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
+                .layer_count = NUM_CASCADES,
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .image_id = images.esm_tmp_cascades,
             });
         }
 
@@ -414,8 +581,194 @@ namespace ff
             });
         }
 
+        // Depth passes
+        {
+            u32vec2 const first_pass_dispatch_size = u32vec2{
+                (swapchain_extent.width + DEPTH_PASS_WG_READS_PER_AXIS.x - 1) / DEPTH_PASS_WG_READS_PER_AXIS.x,
+                (swapchain_extent.height + DEPTH_PASS_WG_READS_PER_AXIS.y - 1) / DEPTH_PASS_WG_READS_PER_AXIS.y};
+
+            command_buffer.cmd_set_push_constant(AnalyzeDepthPC{
+                .depth_limits = context->device->get_buffer_device_address(buffers.depth_limits),
+                .depth_dimensions = {swapchain_extent.width, swapchain_extent.height},
+                .sampler_id = clamp_sampler.index,
+                .prev_thread_count = 0, // Unused in the first pass
+                .depth_index = images.depth.index,
+            });
+            command_buffer.cmd_set_compute_pipeline(pipelines.first_depth_pass);
+            command_buffer.cmd_dispatch({first_pass_dispatch_size.x, first_pass_dispatch_size.y, 1});
+
+            u32 const threads_in_block = DEPTH_PASS_WG_SIZE.x * DEPTH_PASS_WG_SIZE.y;
+            u32 const wg_total_reads = threads_in_block * DEPTH_PASS_THREAD_READ_COUNT.x * DEPTH_PASS_THREAD_READ_COUNT.y;
+            u32 prev_pass_num_threads = first_pass_dispatch_size.x * first_pass_dispatch_size.y;
+            u32 second_pass_dispatch_size = 0;
+            while (second_pass_dispatch_size != 1)
+            {
+                second_pass_dispatch_size = (prev_pass_num_threads + wg_total_reads - 1) / wg_total_reads;
+                command_buffer.cmd_memory_barrier({
+                    .src_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    .src_access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                    .dst_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    .dst_access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                });
+                command_buffer.cmd_set_push_constant(AnalyzeDepthPC{
+                    .depth_limits = context->device->get_buffer_device_address(buffers.depth_limits),
+                    .depth_dimensions = {swapchain_extent.width, swapchain_extent.height},
+                    .sampler_id = clamp_sampler.index,
+                    .prev_thread_count = prev_pass_num_threads,
+                    .depth_index = images.depth.index});
+                command_buffer.cmd_set_compute_pipeline(pipelines.subseq_depth_pass);
+                command_buffer.cmd_dispatch({second_pass_dispatch_size, 1, 1});
+            }
+        }
+
+        // Shadowmap matrices
+        {
+            command_buffer.cmd_memory_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .src_access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                .dst_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .dst_access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+            });
+            command_buffer.cmd_set_push_constant(WriteShadowMatricesPC{
+                .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
+                .fif_index = fif_index,
+                .depth_limits = context->device->get_buffer_device_address(buffers.depth_limits),
+                .cascade_data = context->device->get_buffer_device_address(buffers.cascade_data),
+                .sun_direction = sun_direction,
+            });
+            command_buffer.cmd_set_compute_pipeline(pipelines.write_shadow_matrices);
+            command_buffer.cmd_dispatch({1, 1, 1});
+        }
+
+        // Draw shadows
+        {
+            command_buffer.cmd_memory_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .src_access = VK_ACCESS_2_SHADER_WRITE_BIT,
+                .dst_stages = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT,
+                .dst_access = VK_ACCESS_2_SHADER_READ_BIT,
+            });
+            auto const resolution_multiplier = resolution_table[NUM_CASCADES - 1];
+
+            command_buffer.cmd_begin_renderpass({
+                .depth_attachment = RenderingAttachmentInfo{
+                    .image_id = images.shadowmap_cascades,
+                    .layout = VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+                    .load_op = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE,
+                    .clear_value = {.depthStencil = {.depth = 1.0f, .stencil = 0}},
+                },
+                .render_area = VkRect2D{
+                    .offset = {.x = 0, .y = 0},
+                    .extent = {
+                        .width = SHADOWMAP_RESOLUTION * resolution_multiplier.x,
+                        .height = SHADOWMAP_RESOLUTION * resolution_multiplier.y,
+                    },
+                },
+            });
+            command_buffer.cmd_set_raster_pipeline(pipelines.shadowmap_pass);
+            for (u32 cascade = 0; cascade < NUM_CASCADES; cascade++)
+            {
+                u32vec2 offset;
+                offset.x = cascade % resolution_multiplier.x;
+                offset.y = cascade / resolution_multiplier.x;
+                command_buffer.cmd_set_viewport({
+                    .x = static_cast<f32>(offset.x * SHADOWMAP_RESOLUTION),
+                    .y = static_cast<f32>(offset.y * SHADOWMAP_RESOLUTION),
+                    .width = SHADOWMAP_RESOLUTION,
+                    .height = SHADOWMAP_RESOLUTION,
+                    .minDepth = 0.0f,
+                    .maxDepth = 1.0f,
+                });
+                for (auto const & draw_command : draw_commands.draw_commands)
+                {
+                    command_buffer.cmd_set_push_constant(ShadowPC{
+                        .scene_descriptor = draw_commands.scene_descriptor,
+                        .cascade_data = context->device->get_buffer_device_address(buffers.cascade_data),
+                        .mesh_index = draw_command.mesh_idx,
+                        .sampler_id = no_mip_sampler.index,
+                        .cascade_index = cascade,
+                    });
+                    command_buffer.cmd_draw({
+                        .vertex_count = draw_command.index_count,
+                        .instance_count = draw_command.instance_count,
+                    });
+                }
+            }
+            command_buffer.cmd_end_renderpass();
+        }
+
+        // shadowmap_cascades DEPTH_ATTACHMENT_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL
+        {
+            command_buffer.cmd_image_memory_transition_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
+                .src_access = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                .dst_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .dst_access = VK_ACCESS_2_SHADER_READ_BIT,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT,
+                .image_id = images.shadowmap_cascades,
+            });
+        }
+
+        // ESM blur first pass
+        {
+            auto const resolution_multiplier = resolution_table[NUM_CASCADES - 1];
+            command_buffer.cmd_set_compute_pipeline(pipelines.first_esm_pass);
+            for (u32 cascade = 0; cascade < NUM_CASCADES; cascade++)
+            {
+                u32vec2 const offset = {
+                    cascade % resolution_multiplier.x,
+                    cascade / resolution_multiplier.x,
+                };
+                command_buffer.cmd_set_push_constant(ESMShadowPC{
+                    .tmp_esm_index = images.esm_tmp_cascades.index,
+                    .esm_index = images.esm_cascades.index,
+                    .shadowmap_index = images.shadowmap_cascades.index,
+                    .cascade_index = cascade,
+                    .offset = {
+                        offset.x * SHADOWMAP_RESOLUTION,
+                        offset.y * SHADOWMAP_RESOLUTION,
+                    },
+                });
+                command_buffer.cmd_dispatch({SHADOWMAP_RESOLUTION / ESM_BLUR_WORKGROUP_SIZE, SHADOWMAP_RESOLUTION, 1});
+            }
+        }
+        // esm_tmp_cascades     GENERAL -> SHADER_READ_ONLY_OPTIMAL
+        {
+            command_buffer.cmd_image_memory_transition_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .src_access = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                .dst_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .dst_access = VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                .layer_count = NUM_CASCADES,
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .image_id = images.esm_tmp_cascades,
+            });
+        }
+
+        // ESM blur second pass
+        {
+            command_buffer.cmd_set_compute_pipeline(pipelines.second_esm_pass);
+            for (u32 cascade = 0; cascade < NUM_CASCADES; cascade++)
+            {
+                command_buffer.cmd_set_push_constant(ESMShadowPC{
+                    .tmp_esm_index = images.esm_tmp_cascades.index,
+                    .esm_index = images.esm_cascades.index,
+                    .shadowmap_index = images.shadowmap_cascades.index,
+                    .cascade_index = cascade,
+                    .offset = {},
+                });
+                command_buffer.cmd_dispatch({SHADOWMAP_RESOLUTION, SHADOWMAP_RESOLUTION / ESM_BLUR_WORKGROUP_SIZE, 1});
+            }
+        }
+
         // depth                SHADER_READ_ONLY_OPTIMAL -> DEPTH_ATTACHMENT_OPTIMAL
         // ambient_occlusion    GENERAL                  -> SHADER_READ_ONLY_OPTIMAL
+        // esm_cascades         GENERAL                  -> SHADER_READ_ONLY_OPTIMAL
         {
             command_buffer.cmd_image_memory_transition_barrier({
                 .src_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
@@ -432,11 +785,23 @@ namespace ff
                 .src_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                 .src_access = VK_ACCESS_2_SHADER_WRITE_BIT,
                 .dst_stages = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-                .dst_access = VK_ACCESS_2_SHADER_WRITE_BIT,
+                .dst_access = VK_ACCESS_2_SHADER_READ_BIT,
                 .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
                 .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                 .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
                 .image_id = images.ambient_occlusion,
+            });
+
+            command_buffer.cmd_image_memory_transition_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .src_access = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                .dst_stages = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                .dst_access = VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                .layer_count = NUM_CASCADES,
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .image_id = images.esm_cascades,
             });
         }
 
@@ -465,15 +830,15 @@ namespace ff
                 command_buffer.cmd_set_push_constant(DrawPc{
                     .scene_descriptor = draw_commands.scene_descriptor,
                     .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
+                    .cascade_data = context->device->get_buffer_device_address(buffers.cascade_data),
                     .ss_normals_index = images.ss_normals.index,
                     .ssao_index = images.ambient_occlusion.index,
+                    .esm_shadowmap_index = images.esm_cascades.index,
                     .fif_index = fif_index,
                     .mesh_index = draw_command.mesh_idx,
                     .sampler_id = repeat_sampler.index,
-                    .sun_direction = glm::normalize(f32vec3(
-                        std::cos(f32(accum) / 5.0f),
-                        std::sin(f32(accum) / 5.0f),
-                        1.0f)),
+                    .shadow_sampler_id = clamp_sampler.index,
+                    .sun_direction = sun_direction,
                     .enable_ao = static_cast<u32>(draw_commands.enable_ao),
                 });
                 command_buffer.cmd_draw({
@@ -527,10 +892,17 @@ namespace ff
     {
         context->device->destroy_buffer(buffers.camera_info);
         context->device->destroy_buffer(buffers.ssao_kernel);
+        context->device->destroy_buffer(buffers.cascade_data);
+        context->device->destroy_buffer(buffers.depth_limits);
         context->device->destroy_image(images.ssao_kernel_noise);
         context->device->destroy_image(images.depth);
         context->device->destroy_image(images.ambient_occlusion);
         context->device->destroy_image(images.ss_normals);
+        context->device->destroy_image(images.esm_cascades);
+        context->device->destroy_image(images.esm_tmp_cascades);
+        context->device->destroy_image(images.shadowmap_cascades);
         context->device->destroy_sampler(repeat_sampler);
+        context->device->destroy_sampler(clamp_sampler);
+        context->device->destroy_sampler(no_mip_sampler);
     }
 } // namespace ff

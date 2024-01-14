@@ -81,6 +81,7 @@ Application::Application()
         APP_LOG(fmt::format("[INFO]Application::Application()] Loading Scene Assets \"{}\" Error: {}",
                             (DEFAULT_ROOT_PATH / DEFAULT_SCENE_PATH).string(),
                             AssetProcessor::to_string(load_result)));
+
     }
     else
     {
@@ -88,6 +89,13 @@ Application::Application()
         RenderEntity & r_ent = *scene->_render_entities.slot(r_id);
         APP_LOG(fmt::format("[INFO]Application::Application()] Loading Scene Assets \"{}\" Success",
                             (DEFAULT_ROOT_PATH / DEFAULT_SCENE_PATH).string()));
+        // r_ent.transform = glm::mat4x3(
+        //                       glm::vec3(1.0f, 0.0f, 0.0f),
+        //                       glm::vec3(0.0f, 0.0f, 1.0f),
+        //                       glm::vec3(0.0f, 1.0f, 0.0f),
+        //                       glm::vec3(0.0f, 0.0f, 0.0f)) *
+        //                   1.0f;
+        // ) * 100'000'000.0f;
     }
     asset_processor->record_gpu_load_processing_commands(*scene);
     commands = scene->record_scene_draw_commands();

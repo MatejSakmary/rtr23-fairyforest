@@ -125,6 +125,12 @@ namespace ff
             .scalarBlockLayout = VK_TRUE,
         };
         this->chain = reinterpret_cast<void *>(&this->scalar_layout);
+        this->maintenance_features = {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES,
+            .pNext = this->chain,
+            .maintenance4 = VK_TRUE,
+        };
+        this->chain = reinterpret_cast<void *>(&this->maintenance_features);
     }
 
     void PhysicalDeviceExtensionList::initialize()

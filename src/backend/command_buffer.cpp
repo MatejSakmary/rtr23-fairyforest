@@ -344,6 +344,11 @@ namespace ff
         in_renderpass = true;
     }
 
+    void CommandBuffer::cmd_set_viewport(VkViewport const & info)
+    {
+        vkCmdSetViewport(buffer, 0, 1, &info);
+    };
+
     void CommandBuffer::cmd_end_renderpass()
     {
         if (in_renderpass == false)

@@ -15,6 +15,7 @@ namespace ff
         VkPhysicalDeviceSynchronization2Features sync2 = {};
         VkPhysicalDeviceTimelineSemaphoreFeatures timeline_semaphore = {};
         VkPhysicalDeviceScalarBlockLayoutFeatures scalar_layout = {};
+        VkPhysicalDeviceMaintenance4Features maintenance_features = {};
         void * chain = {};
 
         void initialize();

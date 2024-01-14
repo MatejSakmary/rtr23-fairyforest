@@ -10,6 +10,9 @@ struct CameraInfo
     f32mat4x4 viewproj = {};
     f32vec3 pos = {};
     f32vec3 up = {};
+	f32vec3 frust_right_offset;
+	f32vec3 frust_top_offset;
+	f32vec3 frust_front;
 };
 
 namespace ff
@@ -17,8 +20,14 @@ namespace ff
 	struct Pipelines
 	{
 		RasterPipeline prepass = {};
+		RasterPipeline shadowmap_pass = {};
 		RasterPipeline main_pass = {};
 
+		ComputePipeline first_depth_pass = {};
+		ComputePipeline subseq_depth_pass = {};
+		ComputePipeline write_shadow_matrices = {};
+		ComputePipeline first_esm_pass = {};
+		ComputePipeline second_esm_pass = {};
 		ComputePipeline ssao_pass = {};
 	};
 
@@ -28,12 +37,18 @@ namespace ff
 		ImageId ambient_occlusion = {};
 		ImageId ssao_kernel_noise = {};
         ImageId depth = {};
+
+		ImageId shadowmap_cascades = {};
+		ImageId esm_tmp_cascades;
+		ImageId esm_cascades;
 	};
 
 	struct Buffers
 	{
         BufferId ssao_kernel = {};
 		BufferId camera_info = {};
+		BufferId depth_limits = {};
+		BufferId cascade_data = {};
 	};
     struct Renderer
     {
@@ -57,5 +72,12 @@ namespace ff
 
         u32 frame_index = {};
         SamplerId repeat_sampler = {};
+		SamplerId clamp_sampler = {};
+		SamplerId no_mip_sampler = {};
+
+    	static constexpr std::array<u32vec2, 8> resolution_table{
+        	u32vec2{1u,1u}, u32vec2{2u,1u}, u32vec2{2u,2u}, u32vec2{2u,2u},
+        	u32vec2{3u,2u}, u32vec2{3u,2u}, u32vec2{3u,3u}, u32vec2{3u,3u},
+    	};
     };
 } // namespace ff
