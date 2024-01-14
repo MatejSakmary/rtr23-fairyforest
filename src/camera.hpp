@@ -16,7 +16,7 @@ struct CameraController
     f32 fov = 70.0f;
     f32 near_plane = 0.1f;
     f32 camera_sway_speed = 0.05f;
-    f32 translation_speed = 10.0f;
+    f32 translation_speed = 2.0f;
     f32vec3 up = {0.f, 0.f, 1.0f};
     f32vec3 forward = {0.f, 0.f, 0.f};
     f32vec3 position = {0.f, 1.f, 0.f};

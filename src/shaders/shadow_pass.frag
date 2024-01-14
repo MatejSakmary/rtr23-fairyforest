@@ -14,7 +14,7 @@ void main()
     {
         albedo = texture(sampler2D(texture2DTable[albedo_index], samplerTable[pc.sampler_id]), in_uv);
     }
-    if (albedo.a == 0.0)
+    if (albedo.a <= 0.3)
     {
         discard;
     }

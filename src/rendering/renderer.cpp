@@ -175,7 +175,7 @@ namespace ff
         });
 
         no_mip_sampler = context->device->create_sampler({
-            .max_lod = 0.0f,
+            .mip_lod_bias = 0.0,
             .name = "no mip sampler",
         });
 
