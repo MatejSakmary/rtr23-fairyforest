@@ -122,6 +122,7 @@ struct SceneDrawCommands
 {
     u32 enable_ao = {};
     VkDeviceAddress scene_descriptor = {};
+    ff::BufferId index_buffer_id = {};
     std::vector<DrawCommand> draw_commands = {};
     std::vector<DrawCommand> alpha_discard_commands = {};
 };

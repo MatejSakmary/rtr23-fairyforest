@@ -1,7 +1,8 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
 #include "src/shared/shared.inl"
-// #extension GL_EXT_debug_printf : enable
+#include "src/shaders/util/normals_compress.glsl"
+
 layout(location = 0) in f32vec2 in_uv;
 layout(location = 1) in flat u32 albedo_index;
 layout(location = 2) in f32vec3 world_position;
@@ -80,7 +81,8 @@ void main()
         // return;
     }
 
-    const f32vec3 world_normal = texelFetch(texture2DTable[pc.ss_normals_index], i32vec2(gl_FragCoord.xy), 0).rgb;
+    const u32 world_normal_compressed = texelFetch(utexture2DTable[pc.ss_normals_index], i32vec2(gl_FragCoord.xy), 0).r;
+    const f32vec3 world_normal = u16_to_nrm(world_normal_compressed);
     const f32 sun_norm_dot = clamp(dot(world_normal, pc.sun_direction), 0.0, 1.0);
     const f32 ambient_occlusion = (pc.enable_ao == 1) ?  texelFetch(texture2DTable[pc.ssao_index], i32vec2(gl_FragCoord.xy), 0).r : 1.0;
     const f32 weighed_ambient_occlusion = pow(ambient_occlusion, 2.0);

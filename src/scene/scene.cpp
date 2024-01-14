@@ -319,6 +319,7 @@ auto Scene::record_scene_draw_commands() -> SceneDrawCommands
 {
     SceneDrawCommands commands = {};
     commands.scene_descriptor = _device->get_buffer_device_address(_gpu_scene_descriptor);
+    commands.index_buffer_id = _gpu_mesh_indices;
     u32 global_mesh_idx = 0;
     for (auto const & mesh_group : _mesh_group_manifest)
     {

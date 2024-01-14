@@ -167,7 +167,7 @@ namespace ff
             .name = "depth buffer",
         });
         images.ss_normals = context->device->create_image({
-            .format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT,
+            .format = VkFormat::VK_FORMAT_R16_UINT,
             .extent = {swapchain_extent.width, swapchain_extent.height, 1},
             .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT |
                      VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT |
@@ -425,6 +425,29 @@ namespace ff
             .inverse_view_projection = glm::inverse(camera_info.viewproj),
         };
         std::memcpy(staging_memory, &curr_frame_camera, sizeof(CameraInfoBuf));
+
+        auto record_mesh_draw_commands = [&](auto const & commands)
+        {
+            for (auto const & draw_command : commands)
+            {
+                command_buffer.cmd_set_push_constant(DrawPc{
+                    .scene_descriptor = draw_commands.scene_descriptor,
+                    .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
+                    .ss_normals_index = images.ss_normals.index,
+                    .fif_index = fif_index,
+                    .mesh_index = draw_command.mesh_idx,
+                    .sampler_id = repeat_sampler.index,
+                });
+
+                command_buffer.cmd_draw_indexed({
+                    .index_count = draw_command.index_count,
+                    .instance_count = draw_command.instance_count,
+                    .first_index = draw_command.index_offset,
+                    .vertex_offset = 0,
+                    .first_instance = 0,
+                });
+            }
+        };
         command_buffer.begin();
         // COPY CAMERA INFO
         {
@@ -551,37 +574,14 @@ namespace ff
                 .render_area = VkRect2D{.offset = {.x = 0, .y = 0}, .extent = {.width = swapchain_extent.width, .height = swapchain_extent.height}},
             });
             command_buffer.cmd_set_raster_pipeline(pipelines.prepass);
-            for (auto const & draw_command : draw_commands.draw_commands)
-            {
-                command_buffer.cmd_set_push_constant(DrawPc{
-                    .scene_descriptor = draw_commands.scene_descriptor,
-                    .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
-                    .ss_normals_index = images.ss_normals.index,
-                    .fif_index = fif_index,
-                    .mesh_index = draw_command.mesh_idx,
-                    .sampler_id = repeat_sampler.index,
-                });
-                command_buffer.cmd_draw({
-                    .vertex_count = draw_command.index_count,
-                    .instance_count = draw_command.instance_count,
-                });
-            }
+            command_buffer.cmd_set_index_buffer({
+                .buffer_id = draw_commands.index_buffer_id,
+                .offset = 0,
+                .index_type = VkIndexType::VK_INDEX_TYPE_UINT32,
+            });
+            record_mesh_draw_commands(draw_commands.draw_commands);
             command_buffer.cmd_set_raster_pipeline(pipelines.prepass_discard);
-            for (auto const & draw_command : draw_commands.alpha_discard_commands)
-            {
-                command_buffer.cmd_set_push_constant(DrawPc{
-                    .scene_descriptor = draw_commands.scene_descriptor,
-                    .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
-                    .ss_normals_index = images.ss_normals.index,
-                    .fif_index = fif_index,
-                    .mesh_index = draw_command.mesh_idx,
-                    .sampler_id = repeat_sampler.index,
-                });
-                command_buffer.cmd_draw({
-                    .vertex_count = draw_command.index_count,
-                    .instance_count = draw_command.instance_count,
-                });
-            }
+            record_mesh_draw_commands(draw_commands.alpha_discard_commands);
             command_buffer.cmd_end_renderpass();
         }
 
@@ -717,6 +717,11 @@ namespace ff
                 },
             });
             command_buffer.cmd_set_raster_pipeline(pipelines.shadowmap_pass);
+            command_buffer.cmd_set_index_buffer({
+                .buffer_id = draw_commands.index_buffer_id,
+                .offset = 0,
+                .index_type = VkIndexType::VK_INDEX_TYPE_UINT32,
+            });
             for (u32 cascade = 0; cascade < NUM_CASCADES; cascade++)
             {
                 u32vec2 offset;
@@ -739,9 +744,12 @@ namespace ff
                         .sampler_id = no_mip_sampler.index,
                         .cascade_index = cascade,
                     });
-                    command_buffer.cmd_draw({
-                        .vertex_count = draw_command.index_count,
+                    command_buffer.cmd_draw_indexed({
+                        .index_count = draw_command.index_count,
                         .instance_count = draw_command.instance_count,
+                        .first_index = draw_command.index_offset,
+                        .vertex_offset = 0,
+                        .first_instance = 0,
                     });
                 }
             }
@@ -769,9 +777,12 @@ namespace ff
                         .sampler_id = no_mip_sampler.index,
                         .cascade_index = cascade,
                     });
-                    command_buffer.cmd_draw({
-                        .vertex_count = draw_command.index_count,
+                    command_buffer.cmd_draw_indexed({
+                        .index_count = draw_command.index_count,
                         .instance_count = draw_command.instance_count,
+                        .first_index = draw_command.index_offset,
+                        .vertex_offset = 0,
+                        .first_instance = 0,
                     });
                 }
             }
@@ -905,6 +916,11 @@ namespace ff
                 .render_area = VkRect2D{.offset = {.x = 0, .y = 0}, .extent = {.width = swapchain_extent.width, .height = swapchain_extent.height}},
             });
             command_buffer.cmd_set_raster_pipeline(pipelines.main_pass);
+            command_buffer.cmd_set_index_buffer({
+                .buffer_id = draw_commands.index_buffer_id,
+                .offset = 0,
+                .index_type = VkIndexType::VK_INDEX_TYPE_UINT32,
+            });
             for (auto const & draw_command : draw_commands.draw_commands)
             {
                 command_buffer.cmd_set_push_constant(DrawPc{
@@ -921,9 +937,12 @@ namespace ff
                     .sun_direction = sun_direction,
                     .enable_ao = static_cast<u32>(draw_commands.enable_ao),
                 });
-                command_buffer.cmd_draw({
-                    .vertex_count = draw_command.index_count,
+                command_buffer.cmd_draw_indexed({
+                    .index_count = draw_command.index_count,
                     .instance_count = draw_command.instance_count,
+                    .first_index = draw_command.index_offset,
+                    .vertex_offset = 0,
+                    .first_instance = 0,
                 });
             }
             for (auto const & draw_command : draw_commands.alpha_discard_commands)
@@ -942,9 +961,12 @@ namespace ff
                     .sun_direction = sun_direction,
                     .enable_ao = static_cast<u32>(draw_commands.enable_ao),
                 });
-                command_buffer.cmd_draw({
-                    .vertex_count = draw_command.index_count,
+                command_buffer.cmd_draw_indexed({
+                    .index_count = draw_command.index_count,
                     .instance_count = draw_command.instance_count,
+                    .first_index = draw_command.index_offset,
+                    .vertex_offset = 0,
+                    .first_instance = 0,
                 });
             }
             command_buffer.cmd_end_renderpass();

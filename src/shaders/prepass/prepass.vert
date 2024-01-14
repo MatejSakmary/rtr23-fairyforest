@@ -29,7 +29,7 @@ mat4 mat_4x3_to_4x4(mat4x3 in_mat)
 
 void main()
 {
-    const u32 index = gl_VertexIndex;
+    const u32 vert_index = gl_VertexIndex;
     const u32 instance = gl_InstanceIndex;
 
     SceneDescriptor scene_descriptor = SceneDescriptor(data.scene_descriptor);
@@ -37,7 +37,6 @@ void main()
     MaterialDescriptor material_descriptor = MaterialDescriptor(scene_descriptor.material_descriptors_start)[mesh_descriptor.material_index];
 
     const f32mat4x3 transform = (Transform(scene_descriptor.transforms_start)[mesh_descriptor.transforms_offset + instance]).trans;
-    const u32 vert_index = (Index(scene_descriptor.indices_start)[mesh_descriptor.indices_offset + index]).idx;
 
     const f32vec3 position = (Position(scene_descriptor.positions_start)[mesh_descriptor.positions_offset + vert_index]).position;
     const f32vec2 uv = (UV(scene_descriptor.uvs_start)[mesh_descriptor.uvs_offset + vert_index]).uv;

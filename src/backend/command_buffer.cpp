@@ -268,6 +268,11 @@ namespace ff
         vkCmdDraw(buffer, info.vertex_count, info.instance_count, info.first_vertex, info.first_instance);
     }
 
+    void CommandBuffer::cmd_draw_indexed(DrawIndexedInfo const & info)
+    {
+        vkCmdDrawIndexed(buffer, info.index_count, info.instance_count, info.first_index, info.vertex_offset, info.first_instance);
+    }
+
     void CommandBuffer::cmd_begin_renderpass(BeginRenderpassInfo const & info)
     {
         auto fill_rendering_attachment_info = [&](RenderingAttachmentInfo const & in) -> VkRenderingAttachmentInfo
@@ -348,6 +353,17 @@ namespace ff
     {
         vkCmdSetViewport(buffer, 0, 1, &info);
     };
+
+    void CommandBuffer::cmd_set_index_buffer(SetIndexBufferInfo const & info)
+    {
+        if (!device->resource_table->buffers.is_id_valid(info.buffer_id))
+        {
+            BACKEND_LOG("[ERROR][CommandBuffer::cmd_set_index_buffer()] Received invalid buffer ID");
+            throw std::runtime_error("[ERROR][CommandBuffer::cmd_set_index_buffer()] Received invalid buffer ID");
+        }
+        auto const & src_buffer = device->resource_table->buffers.slot(info.buffer_id);
+        vkCmdBindIndexBuffer(buffer, src_buffer->buffer, info.offset, info.index_type);
+    }
 
     void CommandBuffer::cmd_end_renderpass()
     {

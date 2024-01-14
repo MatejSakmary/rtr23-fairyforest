@@ -112,11 +112,27 @@ namespace ff
         u32 first_instance = 0;
     };
 
+    struct DrawIndexedInfo
+    {
+        u32 index_count = {};
+        u32 instance_count = {};
+        u32 first_index = {};
+        i32 vertex_offset = {};
+        u32 first_instance = {};
+    };
+
     struct DispatchInfo
     {
         u32 x = 0;
         u32 y = 0;
         u32 z = 0;
+    };
+
+    struct SetIndexBufferInfo
+    {
+        BufferId buffer_id = {};
+        u32 offset = {};
+        VkIndexType index_type = {};
     };
 
     struct CommandBuffer
@@ -139,10 +155,12 @@ namespace ff
         void cmd_set_raster_pipeline(RasterPipeline const & pipeline);
         void cmd_set_compute_pipeline(ComputePipeline const & pipeline);
         void cmd_draw(DrawInfo const & info);
+        void cmd_draw_indexed(DrawIndexedInfo const & info);
         void cmd_dispatch(DispatchInfo const & info);
         void cmd_begin_renderpass(BeginRenderpassInfo const & info);
         void cmd_end_renderpass();
         void cmd_set_viewport(VkViewport const & info);
+        void cmd_set_index_buffer(SetIndexBufferInfo const & info);
         auto get_recorded_command_buffer() -> VkCommandBuffer;
 
       private:

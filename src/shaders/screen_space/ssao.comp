@@ -2,6 +2,7 @@
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_debug_printf : enable
 #include "src/shared/shared.inl"
+#include "src/shaders/util/normals_compress.glsl"
 
 layout(push_constant, scalar) uniform pc {SSAOPC data;};
 
@@ -55,8 +56,10 @@ void main()
         const f32vec2 uv = f32vec2(coords) / f32vec2(data.extent);
         const f32vec2 ndc_xy = (uv * 2.0) - 1.0;
 
-        const f32vec3 world_space_normal = imageLoad(image2DTable[data.ss_normals_index], coords).xyz;
         const f32mat4x4 view_matrix = (CameraInfoBuf(data.camera_info)[data.fif_index]).view;
+
+        const u32 world_space_normal_compressed = imageLoad(uimage2DTable[data.ss_normals_index], coords).r;
+        const f32vec3 world_space_normal = u16_to_nrm(world_space_normal_compressed);
         const f32vec3 view_space_normal = normalize((view_matrix * f32vec4(world_space_normal, 0.0)).xyz);
 
         const f32 depth = use_shared_cache ? 
