@@ -16,7 +16,7 @@ struct TextureManifestEntry
 {
     struct MaterialManifestIndex
     {
-        bool diffuse = {}; 
+        bool diffuse = {};
         bool normal = {};
         bool metalic = {};
         bool roughness = {};
@@ -24,7 +24,7 @@ struct TextureManifestEntry
     };
     u32 scene_file_manifest_index = {};
     u32 in_scene_file_index = {};
-    // List of materials that use this texture and how they use it 
+    // List of materials that use this texture and how they use it
     // The GPUMaterial contrains ImageIds directly,
     // So the GPUMaterial Need to be updated when the texture changes.
     std::vector<MaterialManifestIndex> material_manifest_indices = {};
@@ -118,11 +118,12 @@ struct DrawCommand
     u32 index_offset = {};
     u32 instance_count = {};
 };
-struct SceneDrawCommands 
+struct SceneDrawCommands
 {
     u32 enable_ao = {};
     VkDeviceAddress scene_descriptor = {};
     std::vector<DrawCommand> draw_commands = {};
+    std::vector<DrawCommand> alpha_discard_commands = {};
 };
 
 struct Scene
@@ -141,7 +142,7 @@ struct Scene
     ff::BufferId _gpu_scene_descriptor = {};
 
     RenderEntitySlotMap _render_entities = {};
-    std::vector<RenderEntityId> _dirty_render_entities = {}; 
+    std::vector<RenderEntityId> _dirty_render_entities = {};
 
     std::vector<SceneFileManifestEntry> _scene_file_manifest = {};
     std::vector<TextureManifestEntry> _material_texture_manifest = {};
@@ -164,19 +165,24 @@ struct Scene
         INVALID_GLTF_FILE_TYPE,
         COULD_NOT_PARSE_ASSET_NODES,
     };
+    // TODO(msakmary) TEMP UGLY
+    inline static std::array const alpha_discard_materials{
+        std::string("leaf1")
+    };
+
     static auto to_string(LoadManifestErrorCode result) -> std::string_view
     {
-        switch(result)
+        switch (result)
         {
-            case LoadManifestErrorCode::FILE_NOT_FOUND: return "FILE_NOT_FOUND";
-            case LoadManifestErrorCode::COULD_NOT_LOAD_ASSET: return "COULD_NOT_LOAD_ASSET";
-            case LoadManifestErrorCode::INVALID_GLTF_FILE_TYPE: return "INVALID_GLTF_FILE_TYPE";
+            case LoadManifestErrorCode::FILE_NOT_FOUND:              return "FILE_NOT_FOUND";
+            case LoadManifestErrorCode::COULD_NOT_LOAD_ASSET:        return "COULD_NOT_LOAD_ASSET";
+            case LoadManifestErrorCode::INVALID_GLTF_FILE_TYPE:      return "INVALID_GLTF_FILE_TYPE";
             case LoadManifestErrorCode::COULD_NOT_PARSE_ASSET_NODES: return "COULD_NOT_PARSE_ASSET_NODES";
-            default: return "UNKNOWN";
+            default:                                                 return "UNKNOWN";
         }
         return "UNKNOWN";
     }
-    auto load_manifest_from_gltf(std::filesystem::path const& root_path, std::filesystem::path const& glb_name) -> std::variant<RenderEntityId, LoadManifestErrorCode>;
+    auto load_manifest_from_gltf(std::filesystem::path const & root_path, std::filesystem::path const & glb_name) -> std::variant<RenderEntityId, LoadManifestErrorCode>;
 
     auto record_scene_draw_commands() -> SceneDrawCommands;
 

@@ -27,24 +27,26 @@ if(NOT GLSLC)
 endif()
 
 set (GLSL_VERT_SOURCE_FILES
-    "src/shaders/mesh_draw.vert"
-    "src/shaders/prepass.vert"
-    "src/shaders/shadow_pass.vert"
+    "src/shaders/main_pass/mesh_draw.vert"
+    "src/shaders/prepass/prepass.vert"
+    "src/shaders/shadows/shadow_pass.vert"
 )
 
 set (GLSL_FRAG_SOURCE_FILES
-    "src/shaders/mesh_draw.frag"
-    "src/shaders/prepass.frag"
-    "src/shaders/shadow_pass.frag"
+    "src/shaders/main_pass/mesh_draw.frag"
+    "src/shaders/prepass/prepass.frag"
+    "src/shaders/prepass/prepass_discard.frag"
+    "src/shaders/shadows/shadow_pass.frag"
+    "src/shaders/shadows/shadow_pass_discard.frag"
 )
 
 set (GLSL_COMP_SOURCE_FILES
-    "src/shaders/ssao.comp"
-    "src/shaders/first_depth_pass.comp"
-    "src/shaders/subseq_depth_pass.comp"
-    "src/shaders/write_shadow_matrices.comp"
-    "src/shaders/esm_first_pass.comp"
-    "src/shaders/esm_second_pass.comp"
+    "src/shaders/screen_space/ssao.comp"
+    "src/shaders/screen_space/minmax_first_pass.comp"
+    "src/shaders/screen_space/minmax_subseq_pass.comp"
+    "src/shaders/shadows/write_shadow_matrices.comp"
+    "src/shaders/shadows/esm_first_pass.comp"
+    "src/shaders/shadows/esm_second_pass.comp"
 )
 
 compile_glsl("${GLSL_VERT_SOURCE_FILES}" "vert")

@@ -9,14 +9,5 @@ layout(push_constant, scalar) uniform push { ShadowPC pc; };
 
 void main()
 {
-    f32vec4 albedo = f32vec4(1.0);
-    if (albedo_index != -1)
-    {
-        albedo = texture(sampler2D(texture2DTable[albedo_index], samplerTable[pc.sampler_id]), in_uv);
-    }
-    if (albedo.a <= 0.3)
-    {
-        discard;
-    }
     gl_FragDepth = viewspace_depth / (ShadowmapCascadeData(pc.cascade_data)[pc.cascade_index]).far_plane;
 }

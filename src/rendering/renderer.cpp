@@ -31,10 +31,47 @@ namespace ff
             .name = "prepass pipeline",
         }});
 
+        pipelines.prepass_discard = RasterPipeline({RasterPipelineCreateInfo{
+            .device = context->device,
+            .vert_spirv_path = ".\\src\\shaders\\bin\\prepass.vert.spv",
+            .frag_spirv_path = ".\\src\\shaders\\bin\\prepass_discard.frag.spv",
+            .attachments = {
+                RenderAttachmentInfo{.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT},
+            },
+            .depth_test = DepthTestInfo{
+                .depth_attachment_format = VkFormat::VK_FORMAT_D32_SFLOAT,
+                .enable_depth_write = 1,
+                .depth_test_compare_op = VkCompareOp::VK_COMPARE_OP_GREATER,
+            },
+            .raster_info = RasterInfo{.face_culling = VK_CULL_MODE_BACK_BIT, .front_face_winding = VK_FRONT_FACE_COUNTER_CLOCKWISE},
+            .entry_point = "main",
+            .push_constant_size = sizeof(DrawPc),
+            .name = "prepass pipeline",
+        }});
+
         pipelines.shadowmap_pass = RasterPipeline({RasterPipelineCreateInfo{
             .device = context->device,
             .vert_spirv_path = ".\\src\\shaders\\bin\\shadow_pass.vert.spv",
             .frag_spirv_path = ".\\src\\shaders\\bin\\shadow_pass.frag.spv",
+            .depth_test = DepthTestInfo{
+                .depth_attachment_format = VkFormat::VK_FORMAT_D32_SFLOAT,
+                .enable_depth_write = 1,
+                .depth_test_compare_op = VkCompareOp::VK_COMPARE_OP_LESS_OR_EQUAL,
+            },
+            .raster_info = RasterInfo{
+                .face_culling = VK_CULL_MODE_BACK_BIT,
+                .front_face_winding = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                .depth_clamp_enable = true,
+            },
+            .entry_point = "main",
+            .push_constant_size = sizeof(ShadowPC),
+            .name = "shadwo pass pipeline",
+        }});
+
+        pipelines.shadowmap_pass_discard = RasterPipeline({RasterPipelineCreateInfo{
+            .device = context->device,
+            .vert_spirv_path = ".\\src\\shaders\\bin\\shadow_pass.vert.spv",
+            .frag_spirv_path = ".\\src\\shaders\\bin\\shadow_pass_discard.frag.spv",
             .depth_test = DepthTestInfo{
                 .depth_attachment_format = VkFormat::VK_FORMAT_D32_SFLOAT,
                 .enable_depth_write = 1,
@@ -79,7 +116,7 @@ namespace ff
 
         pipelines.first_depth_pass = ComputePipeline({ComputePipelineCreateInfo{
             .device = context->device,
-            .comp_spirv_path = ".\\src\\shaders\\bin\\first_depth_pass.comp.spv",
+            .comp_spirv_path = ".\\src\\shaders\\bin\\minmax_first_pass.comp.spv",
             .entry_point = "main",
             .push_constant_size = sizeof(AnalyzeDepthPC),
             .name = "first depth pass pipeline",
@@ -87,7 +124,7 @@ namespace ff
 
         pipelines.subseq_depth_pass = ComputePipeline({ComputePipelineCreateInfo{
             .device = context->device,
-            .comp_spirv_path = ".\\src\\shaders\\bin\\subseq_depth_pass.comp.spv",
+            .comp_spirv_path = ".\\src\\shaders\\bin\\minmax_subseq_pass.comp.spv",
             .entry_point = "main",
             .push_constant_size = sizeof(AnalyzeDepthPC),
             .name = "subsequent depth pass pipeline",
@@ -523,10 +560,23 @@ namespace ff
                     .fif_index = fif_index,
                     .mesh_index = draw_command.mesh_idx,
                     .sampler_id = repeat_sampler.index,
-                    .sun_direction = glm::normalize(f32vec3(
-                        std::cos(f32(accum) / 5.0f),
-                        std::sin(f32(accum) / 5.0f),
-                        1.0f))});
+                });
+                command_buffer.cmd_draw({
+                    .vertex_count = draw_command.index_count,
+                    .instance_count = draw_command.instance_count,
+                });
+            }
+            command_buffer.cmd_set_raster_pipeline(pipelines.prepass_discard);
+            for (auto const & draw_command : draw_commands.alpha_discard_commands)
+            {
+                command_buffer.cmd_set_push_constant(DrawPc{
+                    .scene_descriptor = draw_commands.scene_descriptor,
+                    .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
+                    .ss_normals_index = images.ss_normals.index,
+                    .fif_index = fif_index,
+                    .mesh_index = draw_command.mesh_idx,
+                    .sampler_id = repeat_sampler.index,
+                });
                 command_buffer.cmd_draw({
                     .vertex_count = draw_command.index_count,
                     .instance_count = draw_command.instance_count,
@@ -695,6 +745,36 @@ namespace ff
                     });
                 }
             }
+
+            command_buffer.cmd_set_raster_pipeline(pipelines.shadowmap_pass_discard);
+            for (u32 cascade = 0; cascade < NUM_CASCADES; cascade++)
+            {
+                u32vec2 offset;
+                offset.x = cascade % resolution_multiplier.x;
+                offset.y = cascade / resolution_multiplier.x;
+                command_buffer.cmd_set_viewport({
+                    .x = static_cast<f32>(offset.x * SHADOWMAP_RESOLUTION),
+                    .y = static_cast<f32>(offset.y * SHADOWMAP_RESOLUTION),
+                    .width = SHADOWMAP_RESOLUTION,
+                    .height = SHADOWMAP_RESOLUTION,
+                    .minDepth = 0.0f,
+                    .maxDepth = 1.0f,
+                });
+                for (auto const & draw_command : draw_commands.alpha_discard_commands)
+                {
+                    command_buffer.cmd_set_push_constant(ShadowPC{
+                        .scene_descriptor = draw_commands.scene_descriptor,
+                        .cascade_data = context->device->get_buffer_device_address(buffers.cascade_data),
+                        .mesh_index = draw_command.mesh_idx,
+                        .sampler_id = no_mip_sampler.index,
+                        .cascade_index = cascade,
+                    });
+                    command_buffer.cmd_draw({
+                        .vertex_count = draw_command.index_count,
+                        .instance_count = draw_command.instance_count,
+                    });
+                }
+            }
             command_buffer.cmd_end_renderpass();
         }
 
@@ -826,6 +906,27 @@ namespace ff
             });
             command_buffer.cmd_set_raster_pipeline(pipelines.main_pass);
             for (auto const & draw_command : draw_commands.draw_commands)
+            {
+                command_buffer.cmd_set_push_constant(DrawPc{
+                    .scene_descriptor = draw_commands.scene_descriptor,
+                    .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
+                    .cascade_data = context->device->get_buffer_device_address(buffers.cascade_data),
+                    .ss_normals_index = images.ss_normals.index,
+                    .ssao_index = images.ambient_occlusion.index,
+                    .esm_shadowmap_index = images.esm_cascades.index,
+                    .fif_index = fif_index,
+                    .mesh_index = draw_command.mesh_idx,
+                    .sampler_id = repeat_sampler.index,
+                    .shadow_sampler_id = clamp_sampler.index,
+                    .sun_direction = sun_direction,
+                    .enable_ao = static_cast<u32>(draw_commands.enable_ao),
+                });
+                command_buffer.cmd_draw({
+                    .vertex_count = draw_command.index_count,
+                    .instance_count = draw_command.instance_count,
+                });
+            }
+            for (auto const & draw_command : draw_commands.alpha_discard_commands)
             {
                 command_buffer.cmd_set_push_constant(DrawPc{
                     .scene_descriptor = draw_commands.scene_descriptor,

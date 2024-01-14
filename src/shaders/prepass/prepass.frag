@@ -13,15 +13,6 @@ layout(push_constant, scalar) uniform pc { DrawPc data; };
 
 void main()
 {
-    f32vec4 albedo = f32vec4(1.0);
-    if (albedo_index != -1)
-    {
-        albedo = texture(sampler2D(texture2DTable[albedo_index], samplerTable[data.sampler_id]), in_uv);
-    }
-    if (albedo.a <= 0.25)
-    {
-        discard;
-    }
     const f32vec3 normal = texture(sampler2D(texture2DTable[normals_index], samplerTable[data.sampler_id]), in_uv).rgb;
     const f32vec3 rescaled_normal = normal * 2.0 - 1.0;
                 

@@ -22,9 +22,9 @@ Scene::~Scene()
     _device->destroy_buffer(_gpu_mesh_descriptors);
     _device->destroy_buffer(_gpu_scene_descriptor);
     _device->destroy_buffer(_gpu_material_descriptors);
-    for(auto & texture : _material_texture_manifest)
+    for (auto & texture : _material_texture_manifest)
     {
-        if(texture.runtime.has_value())
+        if (texture.runtime.has_value())
         {
             _device->destroy_image(texture.runtime.value());
         }
@@ -56,7 +56,7 @@ auto Scene::load_manifest_from_gltf(std::filesystem::path const & root_path, std
         case fastgltf::GltfType::glTF:
         {
             fastgltf::Expected<fastgltf::Asset> result = parser.loadGLTF(&data, file_path.parent_path(), gltf_options);
-            APP_LOG(fmt::format("{}",static_cast<u32>(result.error())));
+            APP_LOG(fmt::format("{}", static_cast<u32>(result.error())));
             if (result.error() != fastgltf::Error::None)
             {
                 return LoadManifestErrorCode::COULD_NOT_LOAD_ASSET;
@@ -320,18 +320,44 @@ auto Scene::record_scene_draw_commands() -> SceneDrawCommands
     SceneDrawCommands commands = {};
     commands.scene_descriptor = _device->get_buffer_device_address(_gpu_scene_descriptor);
     u32 global_mesh_idx = 0;
-    for(auto const & mesh_group : _mesh_group_manifest)
+    for (auto const & mesh_group : _mesh_group_manifest)
     {
-        for(u32 mesh_index = 0; mesh_index < mesh_group.mesh_count; mesh_index++)
+        for (u32 mesh_index = 0; mesh_index < mesh_group.mesh_count; mesh_index++)
         {
             auto const & mesh = _mesh_manifest.at(mesh_group.mesh_manifest_indices.at(mesh_index));
-            commands.draw_commands.push_back({
-                .mesh_idx = global_mesh_idx,
-                .vertex_count = mesh.cpu_runtime->vertex_count,
-                .index_count = mesh.cpu_runtime->index_count,
-                .index_offset = mesh.cpu_runtime->indices_offset,
-                .instance_count = static_cast<u32>(mesh_group.instance_transforms.size())
-            });
+            // TODO(msakmary) Another hack not enough time to fix this properly
+            bool is_discard_material = false;
+            if (mesh.material_manifest_index.has_value())
+            {
+                for (auto const & discard_mat_name : alpha_discard_materials)
+                {
+                    if (_material_manifest.at(mesh.material_manifest_index.value()).name == discard_mat_name)
+                    {
+                        is_discard_material = true;
+                        break;
+                    }
+                }
+            }
+            if (is_discard_material)
+            {
+                commands.alpha_discard_commands.push_back({
+                    .mesh_idx = global_mesh_idx,
+                    .vertex_count = mesh.cpu_runtime->vertex_count,
+                    .index_count = mesh.cpu_runtime->index_count,
+                    .index_offset = mesh.cpu_runtime->indices_offset,
+                    .instance_count = static_cast<u32>(mesh_group.instance_transforms.size()),
+                });
+            }
+            else
+            {
+                commands.draw_commands.push_back({
+                    .mesh_idx = global_mesh_idx,
+                    .vertex_count = mesh.cpu_runtime->vertex_count,
+                    .index_count = mesh.cpu_runtime->index_count,
+                    .index_offset = mesh.cpu_runtime->indices_offset,
+                    .instance_count = static_cast<u32>(mesh_group.instance_transforms.size()),
+                });
+            }
             global_mesh_idx += 1;
         }
     }

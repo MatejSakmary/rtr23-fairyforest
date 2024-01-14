@@ -20,7 +20,9 @@ namespace ff
 	struct Pipelines
 	{
 		RasterPipeline prepass = {};
+		RasterPipeline prepass_discard = {};
 		RasterPipeline shadowmap_pass = {};
+		RasterPipeline shadowmap_pass_discard = {};
 		RasterPipeline main_pass = {};
 
 		ComputePipeline first_depth_pass = {};
