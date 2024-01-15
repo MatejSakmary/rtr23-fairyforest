@@ -12,7 +12,8 @@ layout(buffer_reference, scalar, buffer_reference_align = 4) buffer UV        { 
 layout(location = 0) out f32vec2 out_uv;
 layout(location = 1) out flat u32 albedo_index;
 layout(location = 2) out f32vec3 world_position;
-layout(location = 3) out f32 viewspace_depth;
+layout(location = 3) out f32vec2 out_motion_vector;
+layout(location = 4) out f32 view_space_depth;
 
 mat4 mat_4x3_to_4x4(mat4x3 in_mat)
 {
@@ -40,10 +41,18 @@ void main()
 
     albedo_index = material_descriptor.albedo_index;
     out_uv = uv;
-    const f32mat4x4 view_projection = (CameraInfoBuf(data.camera_info)[data.fif_index]).view_projection;
+    const f32mat4x4 jittered_view_projection = (CameraInfoBuf(data.camera_info)[data.fif_index]).jittered_view_projection;
     const f32mat4x4 view = (CameraInfoBuf(data.camera_info)[data.fif_index]).view;
     const f32mat4x4 model = mat_4x3_to_4x4(transform);
+
     world_position = (model * f32vec4(position, 1.0)).xyz;
-    viewspace_depth = -(view * model * f32vec4(position, 1.0)).z;
-    gl_Position = view_projection * model * f32vec4(position, 1.0);
+
+    view_space_depth = -(view * model * f32vec4(position, 1.0)).z;
+    gl_Position = jittered_view_projection * model * f32vec4(position, 1.0);
+
+    const f32mat4x4 view_projection = (CameraInfoBuf(data.camera_info)[data.fif_index]).view_projection;
+    const f32mat4x4 prev_view_projection = (CameraInfoBuf(data.camera_info)[data.fif_index]).prev_view_projection;
+    const f32vec4 unjittered_pos = view_projection * model * f32vec4(position, 1.0);
+    const f32vec4 unjittered_prev_pos = prev_view_projection * model * f32vec4(position, 1.0);
+    out_motion_vector = f32vec2(( unjittered_pos.xy / unjittered_pos.w - unjittered_prev_pos.xy / unjittered_prev_pos.w)) * -0.5;
 }

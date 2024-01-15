@@ -164,6 +164,8 @@ namespace ff
         auto get_recorded_command_buffer() -> VkCommandBuffer;
 
       private:
+        friend struct Fsr;
+
         bool recording = {};
         bool was_recorded = {};
         bool in_renderpass = {};

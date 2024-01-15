@@ -3,12 +3,15 @@
 #include "src/shared/shared.inl"
 #include "src/shaders/util/normals_compress.glsl"
 
+
 layout(location = 0) in f32vec2 in_uv;
 layout(location = 1) in flat u32 albedo_index;
 layout(location = 2) in f32vec3 world_position;
-layout(location = 3) in f32 viewspace_depth;
+layout(location = 3) in f32vec2 in_motion_vector;
+layout(location = 4) in f32 view_space_depth;
 
 layout(location = 0) out f32vec4 out_color;
+layout(location = 1) out f32vec4 out_motion_vector;
 
 layout(push_constant, scalar) uniform push { DrawPc pc; };
 
@@ -19,13 +22,15 @@ void main()
     {
         albedo = texture(sampler2D(texture2DTable[albedo_index], samplerTable[pc.sampler_id]), in_uv);
     }
-    const f32 depth = gl_FragDepth;
+
+    out_motion_vector = f32vec4(in_motion_vector, 0.0, 0.0);
+    const f32 depth = gl_FragCoord.z;
 
     // Get the cascade index of the current fragment
     u32 cascade_idx = 0;
     for(cascade_idx; cascade_idx < NUM_CASCADES; cascade_idx++)
     {
-        if(viewspace_depth < (ShadowmapCascadeData(pc.cascade_data)[cascade_idx]).cascade_far_depth)
+        if(view_space_depth < (ShadowmapCascadeData(pc.cascade_data)[cascade_idx]).cascade_far_depth)
         {
             break;
         }
@@ -33,7 +38,7 @@ void main()
     // Due to accuracy issues when reprojecting some samples may think
     // they are behind the last far depth - clip these to still be in the last cascade
     // to avoid out of bounds indexing
-    cascade_idx = min(cascade_idx, 3);
+    cascade_idx = min(cascade_idx, NUM_CASCADES - 1);
 
     const f32mat4x4 shadow_view = (ShadowmapCascadeData(pc.cascade_data)[cascade_idx]).cascade_view_matrix;
     const f32mat4x4 shadow_proj_view = (ShadowmapCascadeData(pc.cascade_data)[cascade_idx]).cascade_proj_matrix * shadow_view;

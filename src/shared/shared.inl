@@ -48,9 +48,12 @@ CameraInfoBuf
     f32mat4x4 view;
     f32mat4x4 inverse_view;
     f32mat4x4 projection;
+    f32mat4x4 jittered_projection;
     f32mat4x4 inverse_projection;
     f32mat4x4 view_projection;
     f32mat4x4 inverse_view_projection;
+    f32mat4x4 prev_view_projection;
+    f32mat4x4 jittered_view_projection;
 };
 
 BUFFER_REF(4)
@@ -114,6 +117,8 @@ struct SSAOPC
 
 #define ESM_BLUR_WORKGROUP_SIZE 64
 #define ESM_FACTOR 100.0
+
+#define FSR_UPSCALE_FACTOR 2.0
 
 #define LAMBDA 0.76
 BUFFER_REF(4)

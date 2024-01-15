@@ -99,9 +99,18 @@ void CameraController::update_matrices(Window & window)
     cam_info.view = glm::lookAt(position, position + forward, up);
 
     glm::vec3 right;
-    if(forward.x != 0 && forward.y != 0)      { right = glm::vec3(forward.y, -forward.x, 0.0f); }
-    else if(forward.x != 0 && forward.z != 0) { right = glm::vec3(-forward.z, 0.0f, forward.x); }
-    else                                      { right = glm::vec3(0.0f, -forward.z, forward.y); }
+    if (forward.x != 0 && forward.y != 0)
+    {
+        right = glm::vec3(forward.y, -forward.x, 0.0f);
+    }
+    else if (forward.x != 0 && forward.z != 0)
+    {
+        right = glm::vec3(-forward.z, 0.0f, forward.x);
+    }
+    else
+    {
+        right = glm::vec3(0.0f, -forward.z, forward.y);
+    }
 
     glm::vec3 up_ = glm::normalize(glm::cross(right, forward));
     glm::vec3 right_ = glm::normalize(glm::cross(forward, up));
@@ -111,6 +120,11 @@ void CameraController::update_matrices(Window & window)
     auto right_aspect_fov_correct = right_ * (f32(window.get_width()) / f32(window.get_height())) * fov_tan;
     auto up_fov_correct = glm::normalize(up_) * fov_tan;
 
+    cam_info.fsr_cam_info = {
+        .near_plane = near_plane,
+        .far_plane = std::numeric_limits<f32>::max(),
+        .vertical_fov = glm::radians(fov_tmp),
+    };
     cam_info.frust_front = forward;
     cam_info.frust_top_offset = -up_fov_correct;
     cam_info.frust_right_offset = right_aspect_fov_correct;
@@ -151,11 +165,13 @@ void CinematicCamera::update_position(f32 dt)
     bool const on_last_keyframe = current_keyframe_index == (path_keyframes.size() - 1);
     bool const animation_finished = keyframe_finished && on_last_keyframe;
 
-    if(keyframe_finished)
+    if (keyframe_finished)
     {
         current_keyframe_time = current_keyframe_finish_time - (current_keyframe_time + dt);
         current_keyframe_index = animation_finished ? 0 : current_keyframe_index + 1;
-    } else {
+    }
+    else
+    {
         current_keyframe_time = current_keyframe_time + dt;
     }
 
@@ -167,7 +183,7 @@ void CinematicCamera::update_position(f32 dt)
     f32 w2 = static_cast<f32>((1.0f - t) * 3 * t * t);
     f32 w3 = static_cast<f32>(t * t * t);
 
-    info.pos = 
+    info.pos =
         w0 * current_keyframe.start_position +
         w1 * current_keyframe.first_control_point +
         w2 * current_keyframe.second_control_point +

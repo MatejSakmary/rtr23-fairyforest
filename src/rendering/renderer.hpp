@@ -5,6 +5,7 @@
 
 struct CameraInfo
 {
+	ff::UpscaleInfo::CameraInfo fsr_cam_info;
     f32mat4x4 view = {};
     f32mat4x4 proj = {};
     f32mat4x4 viewproj = {};
@@ -36,13 +37,17 @@ namespace ff
 	struct Images
 	{
 		ImageId ss_normals = {};
+		ImageId motion_vectors = {};
 		ImageId ambient_occlusion = {};
 		ImageId ssao_kernel_noise = {};
         ImageId depth = {};
 
 		ImageId shadowmap_cascades = {};
-		ImageId esm_tmp_cascades;
-		ImageId esm_cascades;
+		ImageId esm_tmp_cascades = {};
+		ImageId esm_cascades = {};
+
+		ImageId offscreen = {};
+		ImageId fsr_target = {};
 	};
 
 	struct Buffers
@@ -52,6 +57,7 @@ namespace ff
 		BufferId depth_limits = {};
 		BufferId cascade_data = {};
 	};
+
     struct Renderer
     {
       public:
@@ -71,11 +77,17 @@ namespace ff
 		Pipelines pipelines = {};
 		Images images = {};
 		Buffers buffers = {};
+		Fsr fsr = {};
 
         u32 frame_index = {};
+		f32 frame_time = {};
         SamplerId repeat_sampler = {};
 		SamplerId clamp_sampler = {};
 		SamplerId no_mip_sampler = {};
+
+		//TODO(msakmary) Hacky...
+		f32vec2 jitter = {};
+		f32mat4x4 prev_view_projection = {};
 
     	static constexpr std::array<u32vec2, 8> resolution_table{
         	u32vec2{1u,1u}, u32vec2{2u,1u}, u32vec2{2u,2u}, u32vec2{2u,2u},

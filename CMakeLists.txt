@@ -72,6 +72,7 @@ add_executable(${PROJECT_NAME}
     "src/backend/gpu_resource_table.cpp"
     "src/backend/command_buffer.cpp"
     "src/backend/pipeline.cpp"
+    "src/backend/fsr.cpp"
     "src/rendering/renderer.cpp"
     "src/scene/asset_processor.cpp"
     "src/scene/scene.cpp"
@@ -84,6 +85,7 @@ find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 find_package(fastgltf CONFIG REQUIRED)
 find_package(freeimage CONFIG REQUIRED)
 find_package(Vulkan REQUIRED)
+find_package(fsr2 CONFIG REQUIRED)
 
 # FreeImage links OpenEXR, which adds /EHsc for its targets, even if we're using Clang
 function(FIXUP_TARGET TGT_NAME)
@@ -109,6 +111,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Vulkan::Vulkan
     fmt::fmt
     glfw
+    fsr2::ffx_fsr2_api
+    fsr2::ffx_fsr2_api_vk
 )
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")

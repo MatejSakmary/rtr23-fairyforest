@@ -49,6 +49,6 @@ void main()
     out_tangent = f32vec4(normalize((mat_4x3_to_4x4(transform) * f32vec4(tangent.xyz, 0.0)).xyz), tangent.w);
     out_normal = normalize((mat_4x3_to_4x4(transform) * f32vec4(normal.xyz, 0.0)).xyz);
 
-    f32mat4x4 view_projection = (CameraInfoBuf(data.camera_info)[data.fif_index]).view_projection;
-    gl_Position = view_projection * mat_4x3_to_4x4(transform) * f32vec4(position, 1.0);
+    const f32mat4x4 jittered_view_proj = (CameraInfoBuf(data.camera_info)[data.fif_index]).jittered_view_projection;
+    gl_Position = jittered_view_proj * mat_4x3_to_4x4(transform) * f32vec4(position, 1.0);
 }

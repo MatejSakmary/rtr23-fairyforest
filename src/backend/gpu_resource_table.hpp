@@ -73,6 +73,7 @@ namespace ff
         friend struct Device;
         friend struct GpuResourceTable;
         friend struct CommandBuffer;
+        friend struct Fsr;
         VkImage image = {};
         VkImageView image_view = {};
         VmaAllocation allocation = {};

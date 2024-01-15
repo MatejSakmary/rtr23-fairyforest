@@ -7,3 +7,4 @@
 #include "command_buffer.hpp"
 #include "pipeline.hpp"
 #include "gpu_resource_table.hpp"
+#include "fsr.hpp"

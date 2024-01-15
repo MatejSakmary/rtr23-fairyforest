@@ -18,7 +18,7 @@ namespace ff
             .vert_spirv_path = ".\\src\\shaders\\bin\\prepass.vert.spv",
             .frag_spirv_path = ".\\src\\shaders\\bin\\prepass.frag.spv",
             .attachments = {
-                RenderAttachmentInfo{.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT},
+                RenderAttachmentInfo{.format = VkFormat::VK_FORMAT_R16_UINT},
             },
             .depth_test = DepthTestInfo{
                 .depth_attachment_format = VkFormat::VK_FORMAT_D32_SFLOAT,
@@ -36,7 +36,7 @@ namespace ff
             .vert_spirv_path = ".\\src\\shaders\\bin\\prepass.vert.spv",
             .frag_spirv_path = ".\\src\\shaders\\bin\\prepass_discard.frag.spv",
             .attachments = {
-                RenderAttachmentInfo{.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT},
+                RenderAttachmentInfo{.format = VkFormat::VK_FORMAT_R16_UINT},
             },
             .depth_test = DepthTestInfo{
                 .depth_attachment_format = VkFormat::VK_FORMAT_D32_SFLOAT,
@@ -65,7 +65,7 @@ namespace ff
             },
             .entry_point = "main",
             .push_constant_size = sizeof(ShadowPC),
-            .name = "shadwo pass pipeline",
+            .name = "shadow pass pipeline",
         }});
 
         pipelines.shadowmap_pass_discard = RasterPipeline({RasterPipelineCreateInfo{
@@ -84,14 +84,16 @@ namespace ff
             },
             .entry_point = "main",
             .push_constant_size = sizeof(ShadowPC),
-            .name = "shadwo pass pipeline",
+            .name = "shadow pass discard pipeline",
         }});
 
         pipelines.main_pass = RasterPipeline({RasterPipelineCreateInfo{
             .device = context->device,
             .vert_spirv_path = ".\\src\\shaders\\bin\\mesh_draw.vert.spv",
             .frag_spirv_path = ".\\src\\shaders\\bin\\mesh_draw.frag.spv",
-            .attachments = {{.format = context->swapchain->surface_format.format}},
+            .attachments = {
+                {.format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT},
+                {.format = VkFormat::VK_FORMAT_R16G16_SFLOAT}},
             .depth_test = DepthTestInfo{
                 .depth_attachment_format = VkFormat::VK_FORMAT_D32_SFLOAT,
                 .enable_depth_write = 0,
@@ -158,9 +160,22 @@ namespace ff
     void Renderer::create_resolution_dep_resources()
     {
         auto const swapchain_extent = context->swapchain->surface_extent;
+        VkExtent2D const render_resolution = {
+            static_cast<u32>(swapchain_extent.width / FSR_UPSCALE_FACTOR),
+            static_cast<u32>(swapchain_extent.height / FSR_UPSCALE_FACTOR),
+        };
+
+        fsr = Fsr(CreateFsrInfo{
+            .fsr_info = {
+                .render_resolution = {render_resolution.width, render_resolution.height},
+                .display_resolution = {swapchain_extent.width, swapchain_extent.height},
+            },
+            .device = context->device,
+        });
+
         images.depth = context->device->create_image({
             .format = VkFormat::VK_FORMAT_D32_SFLOAT,
-            .extent = {swapchain_extent.width, swapchain_extent.height, 1},
+            .extent = {render_resolution.width, render_resolution.height, 1},
             .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
                      VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT,
             .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT,
@@ -168,7 +183,7 @@ namespace ff
         });
         images.ss_normals = context->device->create_image({
             .format = VkFormat::VK_FORMAT_R16_UINT,
-            .extent = {swapchain_extent.width, swapchain_extent.height, 1},
+            .extent = {render_resolution.width, render_resolution.height, 1},
             .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT |
                      VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT |
                      VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
@@ -177,17 +192,50 @@ namespace ff
         });
         images.ambient_occlusion = context->device->create_image({
             .format = VkFormat::VK_FORMAT_R16_SFLOAT,
-            .extent = {swapchain_extent.width, swapchain_extent.height, 1},
+            .extent = {render_resolution.width, render_resolution.height, 1},
             .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT |
                      VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT,
             .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
             .name = "ambient occlusion",
         });
 
+        images.offscreen = context->device->create_image({
+            .format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT,
+            .extent = {render_resolution.width, render_resolution.height, 1},
+            .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                     VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT |
+                     VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT |
+                     VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+            .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+            .name = "offscreen",
+        });
+
+        images.fsr_target = context->device->create_image({
+            .format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT,
+            .extent = {swapchain_extent.width, swapchain_extent.height, 1},
+            .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                     VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT |
+                     VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT |
+                     VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                     VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+            .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+            .name = "fsr target",
+        });
+
+        images.motion_vectors = context->device->create_image({
+            .format = VkFormat::VK_FORMAT_R16G16_SFLOAT,
+            .extent = {render_resolution.width, render_resolution.height, 1},
+            .usage = VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                     VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT |
+                     VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT,
+            .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+            .name = "motion vectors",
+        });
+
         u32vec2 limits_size;
         u32vec2 wg_size = DEPTH_PASS_WG_READS_PER_AXIS;
-        limits_size.x = (swapchain_extent.width + wg_size.x - 1) / wg_size.x;
-        limits_size.y = (swapchain_extent.height + wg_size.y - 1) / wg_size.y;
+        limits_size.x = (render_resolution.width + wg_size.x - 1) / wg_size.x;
+        limits_size.y = (render_resolution.height + wg_size.y - 1) / wg_size.y;
         buffers.depth_limits = context->device->create_buffer({
             .size = static_cast<u32>(sizeof(DepthLimits) * limits_size.x * limits_size.y),
             .name = "depth limits",
@@ -199,7 +247,7 @@ namespace ff
         repeat_sampler = context->device->create_sampler({
             .address_mode_u = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT,
             .address_mode_v = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT,
-            .mip_lod_bias = -1.0f,
+            .mip_lod_bias = std::log2(1.0f/static_cast<f32>(FSR_UPSCALE_FACTOR)) - 1.0f,
             .enable_anisotropy = true,
             .max_anisotropy = 16.0f,
             .name = "repeat sampler",
@@ -405,6 +453,18 @@ namespace ff
 
         auto command_buffer = CommandBuffer(context->device);
         auto const & swapchain_extent = context->device->info_image(swapchain_image).extent;
+        VkExtent2D const render_resolution = {
+            static_cast<u32>(swapchain_extent.width / FSR_UPSCALE_FACTOR),
+            static_cast<u32>(swapchain_extent.height / FSR_UPSCALE_FACTOR),
+        };
+
+        jitter = fsr.get_jitter(frame_index);
+        auto prev_jitter = jitter;
+        f32vec3 const jitter_vec = f32vec3{
+            2.0f * jitter.x / static_cast<f32>(render_resolution.width),
+            2.0f * jitter.y / static_cast<f32>(render_resolution.height),
+            0.0f};
+        f32mat4x4 const jittered_projection = glm::translate(glm::identity<f32mat4x4>(), jitter_vec) * camera_info.proj;
 
         auto camera_info_staging_buffer = context->device->create_buffer({
             .size = sizeof(CameraInfoBuf),
@@ -420,9 +480,12 @@ namespace ff
             .view = camera_info.view,
             .inverse_view = glm::inverse(camera_info.view),
             .projection = camera_info.proj,
+            .jittered_projection = jittered_projection,
             .inverse_projection = glm::inverse(camera_info.proj),
             .view_projection = camera_info.viewproj,
             .inverse_view_projection = glm::inverse(camera_info.viewproj),
+            .prev_view_projection = prev_view_projection,
+            .jittered_view_projection = jittered_projection * camera_info.view,
         };
         std::memcpy(staging_memory, &curr_frame_camera, sizeof(CameraInfoBuf));
 
@@ -465,7 +528,7 @@ namespace ff
                 .dst_access = VK_ACCESS_2_SHADER_READ_BIT,
             });
         }
-        // swapchain_image      UNDEFINED -> COLOR_ATTACHMENT_OPTIMAL
+        // swapchain_image      UNDEFINED -> TANSFER_DST_OPTIMAL
         // ss_normals           UNDEFINED -> COLOR_ATTACHMENT_OPTIMAL
         // ambient_occlusion    UNDEFINED -> GENERAL
         // depth                UNDEFINED -> DEPTH_ATTACHMENT_OPTIMAL
@@ -473,14 +536,17 @@ namespace ff
         // esm_shadowmap        UNDEFINED -> GENERAL
         // esm_cascades         UNDEFINED -> GENERAL
         // esm_tmp_cascades     UNDEFINED -> GENERAL
+        // offscreen            UNDEFINED -> COLOR_ATTACHMENT_OPTIMAL
+        // fsr_target           UNDEFINED -> GENERAL
+        // motion_vectors       UNDEFINED -> COLOR_ATTACHMENT_OPTIMAL
         {
             command_buffer.cmd_image_memory_transition_barrier({
                 .src_stages = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
                 .src_access = VK_ACCESS_2_NONE_KHR,
-                .dst_stages = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .dst_access = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                .dst_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                .dst_access = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                 .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED,
-                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
                 .image_id = swapchain_image,
             });
@@ -552,6 +618,39 @@ namespace ff
                 .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
                 .image_id = images.esm_tmp_cascades,
             });
+
+            command_buffer.cmd_image_memory_transition_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
+                .src_access = VK_ACCESS_2_NONE_KHR,
+                .dst_stages = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .dst_access = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .image_id = images.offscreen,
+            });
+
+            command_buffer.cmd_image_memory_transition_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
+                .src_access = VK_ACCESS_2_NONE_KHR,
+                .dst_stages = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .dst_access = VK_ACCESS_2_MEMORY_WRITE_BIT,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .image_id = images.fsr_target,
+            });
+
+            command_buffer.cmd_image_memory_transition_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
+                .src_access = VK_ACCESS_2_NONE_KHR,
+                .dst_stages = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .dst_access = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .image_id = images.motion_vectors,
+            });
         }
 
         // PREPASS
@@ -571,7 +670,7 @@ namespace ff
                     .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE,
                     .clear_value = {.depthStencil = {.depth = 0.0f, .stencil = 0}},
                 },
-                .render_area = VkRect2D{.offset = {.x = 0, .y = 0}, .extent = {.width = swapchain_extent.width, .height = swapchain_extent.height}},
+                .render_area = VkRect2D{.offset = {.x = 0, .y = 0}, .extent = {.width = render_resolution.width, .height = render_resolution.height}},
             });
             command_buffer.cmd_set_raster_pipeline(pipelines.prepass);
             command_buffer.cmd_set_index_buffer({
@@ -622,11 +721,11 @@ namespace ff
                 .kernel_noise_index = images.ssao_kernel_noise.index,
                 .depth_index = images.depth.index,
                 .ambient_occlusion_index = images.ambient_occlusion.index,
-                .extent = {swapchain_extent.width, swapchain_extent.height},
+                .extent = {render_resolution.width, render_resolution.height},
             });
             command_buffer.cmd_dispatch({
-                .x = (swapchain_extent.width + SSAO_X_TILE_SIZE - 1) / SSAO_X_TILE_SIZE,
-                .y = (swapchain_extent.height + SSAO_Y_TILE_SIZE - 1) / SSAO_Y_TILE_SIZE,
+                .x = (render_resolution.width + SSAO_X_TILE_SIZE - 1) / SSAO_X_TILE_SIZE,
+                .y = (render_resolution.height + SSAO_Y_TILE_SIZE - 1) / SSAO_Y_TILE_SIZE,
                 .z = 1,
             });
         }
@@ -634,12 +733,12 @@ namespace ff
         // Depth passes
         {
             u32vec2 const first_pass_dispatch_size = u32vec2{
-                (swapchain_extent.width + DEPTH_PASS_WG_READS_PER_AXIS.x - 1) / DEPTH_PASS_WG_READS_PER_AXIS.x,
-                (swapchain_extent.height + DEPTH_PASS_WG_READS_PER_AXIS.y - 1) / DEPTH_PASS_WG_READS_PER_AXIS.y};
+                (render_resolution.width + DEPTH_PASS_WG_READS_PER_AXIS.x - 1) / DEPTH_PASS_WG_READS_PER_AXIS.x,
+                (render_resolution.height + DEPTH_PASS_WG_READS_PER_AXIS.y - 1) / DEPTH_PASS_WG_READS_PER_AXIS.y};
 
             command_buffer.cmd_set_push_constant(AnalyzeDepthPC{
                 .depth_limits = context->device->get_buffer_device_address(buffers.depth_limits),
-                .depth_dimensions = {swapchain_extent.width, swapchain_extent.height},
+                .depth_dimensions = {render_resolution.width, render_resolution.height},
                 .sampler_id = clamp_sampler.index,
                 .prev_thread_count = 0, // Unused in the first pass
                 .depth_index = images.depth.index,
@@ -662,7 +761,7 @@ namespace ff
                 });
                 command_buffer.cmd_set_push_constant(AnalyzeDepthPC{
                     .depth_limits = context->device->get_buffer_device_address(buffers.depth_limits),
-                    .depth_dimensions = {swapchain_extent.width, swapchain_extent.height},
+                    .depth_dimensions = {render_resolution.width, render_resolution.height},
                     .sampler_id = clamp_sampler.index,
                     .prev_thread_count = prev_pass_num_threads,
                     .depth_index = images.depth.index});
@@ -899,13 +998,22 @@ namespace ff
         // COLOR PASS
         {
             command_buffer.cmd_begin_renderpass({
-                .color_attachments = {{
-                    .image_id = swapchain_image,
-                    .layout = VkImageLayout::VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
-                    .load_op = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR,
-                    .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE,
-                    .clear_value = {.color = {.float32 = {SKY_COLOR.x, SKY_COLOR.y, SKY_COLOR.z, 1.0f}}},
-                }},
+                .color_attachments = {
+                    {
+                        .image_id = images.offscreen,
+                        .layout = VkImageLayout::VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+                        .load_op = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR,
+                        .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE,
+                        .clear_value = {.color = {.float32 = {SKY_COLOR.x, SKY_COLOR.y, SKY_COLOR.z, 1.0f}}},
+                    },
+                    {
+                        .image_id = images.motion_vectors,
+                        .layout = VkImageLayout::VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+                        .load_op = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR,
+                        .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE,
+                        .clear_value = {.color = {.float32 = {0.0f, 0.0f, 0.0f, 1.0f}}},
+                    },
+                },
                 .depth_attachment = RenderingAttachmentInfo{
                     .image_id = images.depth,
                     .layout = VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
@@ -913,7 +1021,7 @@ namespace ff
                     .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_DONT_CARE,
                     .clear_value = {.depthStencil = {.depth = 0.0f, .stencil = 0}},
                 },
-                .render_area = VkRect2D{.offset = {.x = 0, .y = 0}, .extent = {.width = swapchain_extent.width, .height = swapchain_extent.height}},
+                .render_area = VkRect2D{.offset = {.x = 0, .y = 0}, .extent = {.width = render_resolution.width, .height = render_resolution.height}},
             });
             command_buffer.cmd_set_raster_pipeline(pipelines.main_pass);
             command_buffer.cmd_set_index_buffer({
@@ -972,14 +1080,95 @@ namespace ff
             command_buffer.cmd_end_renderpass();
         }
 
-        // swapchain COLOR_ATTACHMENT_OPTIMAL -> PRESENT_SRC
+        // offscreen        COLOR_ATTACHMENT_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL
+        // motion vectors   COLOR_ATTACHMENT_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL
+        // depth            DEPTH_ATTACHMENT_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL
         {
             command_buffer.cmd_image_memory_transition_barrier({
                 .src_stages = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                 .src_access = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                .dst_stages = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .dst_access = VK_ACCESS_2_SHADER_READ_BIT,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .image_id = images.offscreen,
+            });
+
+            command_buffer.cmd_image_memory_transition_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .src_access = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                .dst_stages = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .dst_access = VK_ACCESS_2_SHADER_READ_BIT,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .image_id = images.motion_vectors,
+            });
+
+            command_buffer.cmd_image_memory_transition_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
+                .src_access = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+                .dst_stages = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .dst_access = VK_ACCESS_2_SHADER_READ_BIT,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT,
+                .image_id = images.depth,
+            });
+        }
+        // FSR upscale
+        {
+            fsr.upscale({
+                .command_buffer = command_buffer,
+                .color_id = images.offscreen,
+                .depth_id = images.depth,
+                .motion_vectors_id = images.motion_vectors,
+                .target_id = images.fsr_target,
+                .should_reset = false,
+                .delta_time = frame_time,
+                .jitter = jitter,
+                .should_sharpen = false,
+                .sharpening = 0.0f,
+                .camera_info = camera_info.fsr_cam_info,
+            });
+        }
+        // fsr_taget GENERAL -> TRANSFER_SRC_OPTIMAL
+        {
+            command_buffer.cmd_image_memory_transition_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .src_access = VK_ACCESS_2_MEMORY_WRITE_BIT,
+                .dst_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                .dst_access = VK_ACCESS_2_TRANSFER_READ_BIT,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .image_id = images.fsr_target,
+            });
+        }
+        // blit fsr_target into swapchain
+        {
+            command_buffer.cmd_blit_image({
+                .src_image = images.fsr_target,
+                .dst_image = swapchain_image,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .src_aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .dst_aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .src_start_offset = {0, 0, 0},
+                .src_end_offset = {static_cast<i32>(swapchain_extent.width), static_cast<i32>(swapchain_extent.height), 1},
+                .dst_start_offset = {0, 0, 0},
+                .dst_end_offset = {static_cast<i32>(swapchain_extent.width), static_cast<i32>(swapchain_extent.height), 1},
+            });
+        }
+        // swapchain TRANSFER_DST_OPTIMAL -> PRESENT_SRC
+        {
+            command_buffer.cmd_image_memory_transition_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                .src_access = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                 .dst_stages = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
                 .dst_access = VK_ACCESS_2_MEMORY_READ_BIT,
-                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                 .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
                 .image_id = swapchain_image,
@@ -1005,7 +1194,8 @@ namespace ff
         context->device->destroy_buffer(camera_info_staging_buffer);
         context->swapchain->present({.wait_semaphores = {&present_semaphore, 1}});
         context->device->cleanup_resources();
-        u32 elapsed_time = stopwatch.elapsed_time<unsigned int, std::chrono::microseconds>();
+        prev_view_projection = curr_frame_camera.view_projection;
+        frame_time = stopwatch.elapsed_time<f32, std::chrono::seconds>();
         // fmt::println("CPU frame time {}us FPS {}", elapsed_time, 1.0f / (elapsed_time * 0.000'001f));
         frame_index += 1;
         accum += delta_time;
@@ -1024,6 +1214,9 @@ namespace ff
         context->device->destroy_image(images.esm_cascades);
         context->device->destroy_image(images.esm_tmp_cascades);
         context->device->destroy_image(images.shadowmap_cascades);
+        context->device->destroy_image(images.fsr_target);
+        context->device->destroy_image(images.offscreen);
+        context->device->destroy_image(images.motion_vectors);
         context->device->destroy_sampler(repeat_sampler);
         context->device->destroy_sampler(clamp_sampler);
         context->device->destroy_sampler(no_mip_sampler);

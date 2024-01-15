@@ -83,6 +83,7 @@ namespace ff
         friend struct CommandBuffer;
         friend struct RasterPipeline;
         friend struct ComputePipeline;
+        friend struct Fsr;
 
         constexpr static u32 MAX_BUFFERS = 1000u;
         constexpr static u32 MAX_IMAGES = 1000u;
