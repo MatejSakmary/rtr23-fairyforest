@@ -778,7 +778,7 @@ void process_node(Scene & scene, RenderEntity const * node, f32mat4x3 curr_trans
 {
     auto const has_children = node->first_child.has_value();
     auto const has_meshgroup = node->mesh_group_manifest_index.has_value();
-    DBG_ASSERT_TRUE_M(!(has_children && has_meshgroup), "[ERROR][AssetProcessor::process_node()] Node is both meshgroup and has children");
+    // DBG_ASSERT_TRUE_M(!(has_children && has_meshgroup), "[ERROR][AssetProcessor::process_node()] Node is both meshgroup and has children");
 
     auto mat4x3_to_mat4x4 = [](f32mat4x3 orig) -> f32mat4x4
     {
@@ -798,12 +798,12 @@ void process_node(Scene & scene, RenderEntity const * node, f32mat4x3 curr_trans
             process_node(scene, curr_child, f32mat4x3(new_transform));
             if (!curr_child->next_sibling.has_value())
             {
-                return;
+                break;
             }
             curr_child = scene._render_entities.slot(curr_child->next_sibling.value());
         }
     }
-    else if (has_meshgroup)
+    if (has_meshgroup)
     {
         auto & meshgroup_data = scene._mesh_group_manifest.at(node->mesh_group_manifest_index.value());
         meshgroup_data.instance_transforms.push_back(f32mat4x3(new_transform));
