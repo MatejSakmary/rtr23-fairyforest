@@ -168,7 +168,11 @@ struct Scene
     };
     // TODO(msakmary) TEMP UGLY
     inline static std::array const alpha_discard_materials{
-        std::string("leaf1")
+        std::string("leaf1"),
+        std::string("Ferns"),
+        std::string("Ferns.001"),
+        std::string("Grass.001"),
+        std::string("Grass.002"),
     };
 
     static auto to_string(LoadManifestErrorCode result) -> std::string_view
