@@ -572,7 +572,10 @@ namespace ff
             2.0f * jitter.x / static_cast<f32>(render_resolution.width),
             2.0f * jitter.y / static_cast<f32>(render_resolution.height),
             0.0f};
-        f32mat4x4 const jittered_projection = glm::translate(glm::identity<f32mat4x4>(), jitter_vec) * camera_info.proj;
+
+        f32mat4x4 const jittered_projection = draw_commands.no_fsr ? 
+            camera_info.proj : 
+            glm::translate(glm::identity<f32mat4x4>(), jitter_vec) * camera_info.proj;
 
         auto camera_info_staging_buffer = context->device->create_buffer({
             .size = sizeof(CameraInfoBuf),
@@ -1211,20 +1214,35 @@ namespace ff
             });
         }
 
-        // offscreen        GENERAL -> SHADER_READ_ONLY_OPTIMAL
+        // offscreen        if fsr_on  = GENERAL -> SHADER_READ_ONLY_OPTIMAL
+        // offscreen        if fsr_off = GENERAL -> TRANSFER_SRC_OPTIMAL
         // motion vectors   COLOR_ATTACHMENT_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL
         // depth            DEPTH_ATTACHMENT_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL
         {
-            command_buffer.cmd_image_memory_transition_barrier({
-                .src_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                .src_access = VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_SHADER_READ_BIT,
-                .dst_stages = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                .dst_access = VK_ACCESS_2_SHADER_READ_BIT,
-                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
-                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
-                .image_id = images.offscreen,
-            });
+            if(!draw_commands.no_fsr)
+            {
+                command_buffer.cmd_image_memory_transition_barrier({
+                    .src_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    .src_access = VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_SHADER_READ_BIT,
+                    .dst_stages = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    .dst_access = VK_ACCESS_2_SHADER_READ_BIT,
+                    .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
+                    .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                    .image_id = images.offscreen,
+                });
+            } else {
+                command_buffer.cmd_image_memory_transition_barrier({
+                    .src_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    .src_access = VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_SHADER_READ_BIT,
+                    .dst_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                    .dst_access = VK_ACCESS_2_TRANSFER_READ_BIT,
+                    .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
+                    .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                    .image_id = images.offscreen,
+                });
+            }
 
             command_buffer.cmd_image_memory_transition_barrier({
                 .src_stages = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -1248,49 +1266,68 @@ namespace ff
                 .image_id = images.depth,
             });
         }
-        // FSR upscale
+        if(!draw_commands.no_fsr)
         {
-            fsr.upscale({
-                .command_buffer = command_buffer,
-                .color_id = images.offscreen,
-                .depth_id = images.depth,
-                .motion_vectors_id = images.motion_vectors,
-                .target_id = images.fsr_target,
-                .should_reset = draw_commands.reset_fsr,
-                .delta_time = delta_time * 1000.0f,
-                .jitter = jitter,
-                .should_sharpen = false,
-                .sharpening = 0.0f,
-                .camera_info = camera_info.fsr_cam_info,
-            });
-        }
-        // fsr_taget GENERAL -> TRANSFER_SRC_OPTIMAL
-        {
-            command_buffer.cmd_image_memory_transition_barrier({
-                .src_stages = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                .src_access = VK_ACCESS_2_MEMORY_WRITE_BIT,
-                .dst_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                .dst_access = VK_ACCESS_2_TRANSFER_READ_BIT,
-                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
-                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
-                .image_id = images.fsr_target,
-            });
-        }
-        // blit fsr_target into swapchain
-        {
-            command_buffer.cmd_blit_image({
-                .src_image = images.fsr_target,
-                .dst_image = swapchain_image,
-                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                .src_aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
-                .dst_aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
-                .src_start_offset = {0, 0, 0},
-                .src_end_offset = {static_cast<i32>(swapchain_extent.width), static_cast<i32>(swapchain_extent.height), 1},
-                .dst_start_offset = {0, 0, 0},
-                .dst_end_offset = {static_cast<i32>(swapchain_extent.width), static_cast<i32>(swapchain_extent.height), 1},
-            });
+            // FSR upscale
+            {
+                fsr.upscale({
+                    .command_buffer = command_buffer,
+                    .color_id = images.offscreen,
+                    .depth_id = images.depth,
+                    .motion_vectors_id = images.motion_vectors,
+                    .target_id = images.fsr_target,
+                    .should_reset = draw_commands.reset_fsr,
+                    .delta_time = delta_time * 1000.0f,
+                    .jitter = jitter,
+                    .should_sharpen = false,
+                    .sharpening = 0.0f,
+                    .camera_info = camera_info.fsr_cam_info,
+                });
+            }
+            // fsr_taget GENERAL -> TRANSFER_SRC_OPTIMAL
+            {
+                command_buffer.cmd_image_memory_transition_barrier({
+                    .src_stages = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    .src_access = VK_ACCESS_2_MEMORY_WRITE_BIT,
+                    .dst_stages = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                    .dst_access = VK_ACCESS_2_TRANSFER_READ_BIT,
+                    .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
+                    .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                    .image_id = images.fsr_target,
+                });
+            }
+            // blit offscreen into swapchain
+            {
+                command_buffer.cmd_blit_image({
+                    .src_image = images.fsr_target,
+                    .dst_image = swapchain_image,
+                    .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    .src_aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                    .dst_aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                    .src_start_offset = {0, 0, 0},
+                    .src_end_offset = {static_cast<i32>(swapchain_extent.width), static_cast<i32>(swapchain_extent.height), 1},
+                    .dst_start_offset = {0, 0, 0},
+                    .dst_end_offset = {static_cast<i32>(swapchain_extent.width), static_cast<i32>(swapchain_extent.height), 1},
+                });
+            }
+        } else {
+            // blit offscreen into swapchain
+            {
+                command_buffer.cmd_blit_image({
+                    .src_image = images.offscreen,
+                    .dst_image = swapchain_image,
+                    .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    .src_aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                    .dst_aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                    .src_start_offset = {0, 0, 0},
+                    .src_end_offset = {static_cast<i32>(swapchain_extent.width), static_cast<i32>(swapchain_extent.height), 1},
+                    .dst_start_offset = {0, 0, 0},
+                    .dst_end_offset = {static_cast<i32>(swapchain_extent.width), static_cast<i32>(swapchain_extent.height), 1},
+                });
+            }
         }
         // swapchain TRANSFER_DST_OPTIMAL -> PRESENT_SRC
         {

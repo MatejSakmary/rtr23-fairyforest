@@ -127,6 +127,7 @@ struct SceneDrawCommands
     u32 no_normal_maps = {};
     bool reset_fsr = {};
     bool no_fog = {};
+    bool no_fsr = {};
     VkDeviceAddress scene_descriptor = {};
     ff::BufferId index_buffer_id = {};
     std::vector<DrawCommand> draw_commands = {};

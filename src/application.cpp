@@ -118,6 +118,7 @@ auto Application::run() -> i32
         commands.no_normal_maps = no_normal_maps;
         commands.reset_fsr = reset_fsr;
         commands.no_fog = no_fog;
+        commands.no_fsr = no_fsr;
         reset_fsr = false;
         renderer->draw_frame(commands, camera_controller.cam_info, delta_time);
         // renderer->draw_frame(commands, camera.info, delta_time);
@@ -181,6 +182,11 @@ void Application::update()
     {
         renderer->change_fsr_scaling(3.0f);
         reset_fsr = true;
+    }
+    if(window->key_just_pressed(GLFW_KEY_MINUS))
+    {
+        renderer->change_fsr_scaling(1.0f);
+        no_fsr = !no_fsr;
     }
     camera_controller.process_input(*window, delta_time);
     camera_controller.update_matrices(*window);
