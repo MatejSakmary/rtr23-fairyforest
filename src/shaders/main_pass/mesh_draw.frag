@@ -55,7 +55,7 @@ void main()
     // Equation 3 in ESM paper
     f32 shadow = exp(-ESM_FACTOR * (shadow_reprojected_distance - distance_in_shadowmap));
 
-    const f32 threshold = 0.2;
+    const f32 threshold = 0.05;
 
     // For the cases where we break the shadowmap assumption (see figure 3 in ESM paper)
     // we do manual filtering where we clamp the individual samples before blending them
@@ -82,8 +82,6 @@ void main()
         const f32 tmp0 = mix(shadow_gathered.w, shadow_gathered.z, blend_factor.x);
         const f32 tmp1 = mix(shadow_gathered.x, shadow_gathered.y, blend_factor.x);
         shadow = mix(tmp0, tmp1, blend_factor.y);
-        // out_color = f32vec4(1.0, 0.0, 0.0, 1.0);
-        // return;
     }
 
     const u32 world_normal_compressed = texelFetch(utexture2DTable[pc.ss_normals_index], i32vec2(gl_FragCoord.xy), 0).r;
@@ -91,18 +89,17 @@ void main()
     const f32 sun_norm_dot = clamp(dot(world_normal, pc.sun_direction), 0.0, 1.0);
     const f32 ambient_occlusion = (pc.enable_ao == 1) ?  texelFetch(texture2DTable[pc.ssao_index], i32vec2(gl_FragCoord.xy), 0).r : 1.0;
     const f32 weighed_ambient_occlusion = pow(ambient_occlusion, 2.0);
-    const f32 sun_intensity = 0.2;
+    const f32 sun_intensity = 0.5;
 
-    const f32vec3 sun_color = f32vec3(0.82, 0.910, 0.976);
-
-    const f32 ambient_factor = (dot(f32vec3(0.0, 0.0, 1.0), world_normal) * 0.4 + 0.6) * 0.2;
+    const f32 ambient_factor = (dot(f32vec3(0.0, 0.0, 1.0), world_normal) * 0.4 + 0.6) * 0.5;
     const f32 occlusion_ambient_factor = weighed_ambient_occlusion * ambient_factor;
     const f32 indirect = clamp(dot(world_normal, normalize(pc.sun_direction * f32vec3(-1.0, -1.0, 0.0))), 0.0, 1.0);
 
-    f32vec3 diffuse = sun_norm_dot * sun_color * sun_intensity * clamp(pow(shadow, 4), 0.0, 1.0);
+    f32vec3 diffuse = sun_norm_dot * SUN_COLOR * sun_intensity * clamp(pow(shadow, 4), 0.0, 1.0);
     diffuse += occlusion_ambient_factor * (SKY_COLOR * 100);
     diffuse += weighed_ambient_occlusion * indirect * f32vec3(0.82, 0.910, 0.976) * 0.02;
 
-    out_color = f32vec4(diffuse * albedo.rgb, 1.0);
+    out_color = f32vec4(diffuse * (albedo.rgb), 1.0);
     // out_color.xyz = f32vec3(shadow) * sun_norm_dot;
+    // out_color.xyz = diffuse;
 }

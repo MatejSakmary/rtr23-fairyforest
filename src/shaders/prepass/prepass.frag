@@ -26,5 +26,5 @@ void main()
     const f32mat3x3 TBN = f32mat3x3(ort_tangent, bitangent, norm_in_normal);
     const f32vec3 world_normal = normalize(TBN * rescaled_normal);
     compressed_normal = u32vec4(nrm_to_u16(world_normal));
-    // world_normal = f32vec4(in_normal, 1.0);
+    // compressed_normal = u32vec4(nrm_to_u16(in_normal));
 }

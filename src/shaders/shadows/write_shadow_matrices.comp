@@ -41,7 +41,7 @@ void main()
 {
     f32vec2 min_max_depth = (DepthLimits(pc.depth_limits)[0]).limits;
 
-    const f32mat4x4 inverse_projection = (CameraInfoBuf(pc.camera_info)[pc.fif_index]).inverse_projection;
+    const f32mat4x4 inverse_projection = (CameraInfoBuf(pc.camera_info)[pc.fif_index]).inverse_jittered_projection;
     const f32vec3 camera_position_world_space = (CameraInfoBuf(pc.camera_info)[pc.fif_index]).position;
 
     // Reverse depth so min_depth is actually max dist and other way around

@@ -4,6 +4,7 @@
 #include "../backend/backend.inl"
 
 #define SKY_COLOR f32vec3(0.0015 * 0.1, 0.0015 * 0.1, 0.0075 * 0.1)
+#define SUN_COLOR f32vec3(0.82, 0.910, 0.976)
 
 BUFFER_REF(4)
 SceneDescriptor
@@ -48,8 +49,9 @@ CameraInfoBuf
     f32mat4x4 view;
     f32mat4x4 inverse_view;
     f32mat4x4 projection;
-    f32mat4x4 jittered_projection;
     f32mat4x4 inverse_projection;
+    f32mat4x4 jittered_projection;
+    f32mat4x4 inverse_jittered_projection;
     f32mat4x4 view_projection;
     f32mat4x4 inverse_view_projection;
     f32mat4x4 prev_view_projection;
@@ -120,7 +122,7 @@ struct SSAOPC
 
 #define FSR_UPSCALE_FACTOR 2.0
 
-#define LAMBDA 0.76
+#define LAMBDA 0.70
 BUFFER_REF(4)
 DepthLimits
 {
@@ -161,4 +163,17 @@ struct ESMShadowPC
     u32 shadowmap_index;
     u32 cascade_index;
     u32vec2 offset;
+};
+
+// Fog
+#define FOG_PASS_X_TILE_SIZE 16
+#define FOG_PASS_Y_TILE_SIZE 16
+struct FogPC
+{
+    VkDeviceAddress camera_info;
+    u32 fif_index;
+    u32 depth_index;
+    u32 offscreen_index;
+    u32vec2 extent;
+    f32vec3 sun_direction;
 };

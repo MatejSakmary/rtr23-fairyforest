@@ -32,6 +32,7 @@ namespace ff
 		ComputePipeline first_esm_pass = {};
 		ComputePipeline second_esm_pass = {};
 		ComputePipeline ssao_pass = {};
+		ComputePipeline fog_pass = {};
 	};
 
 	struct Images

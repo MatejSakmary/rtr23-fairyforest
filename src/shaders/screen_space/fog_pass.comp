@@ -1,0 +1,60 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#include "src/shared/shared.inl"
+
+layout(push_constant, scalar) uniform push {FogPC pc;};
+
+const f32mat4x4 dither_mat = f32mat4x4(
+    f32vec4(0 , 8 ,  2, 10) * (1.0 / 16.0),
+    f32vec4(12, 4 , 14, 6 ) * (1.0 / 16.0),
+    f32vec4(3 , 11,  1, 9 ) * (1.0 / 16.0),
+    f32vec4(15, 7 , 13, 5 ) * (1.0 / 16.0)
+);
+
+layout (local_size_x = FOG_PASS_X_TILE_SIZE, local_size_y = FOG_PASS_Y_TILE_SIZE, local_size_z = 1) in;
+void main()
+{
+    const bool thread_in_image_bounds = all(lessThan(gl_GlobalInvocationID.xy, u32vec2(pc.extent)));
+
+    if(thread_in_image_bounds)
+    {
+        const i32vec2 coords = i32vec2(gl_GlobalInvocationID.xy);
+        const f32vec2 uv = f32vec2(coords) / f32vec2(pc.extent);
+        const f32vec2 ndc_xy = (uv * 2.0) - 1.0;
+
+        const f32 depth = max(texelFetch(texture2DTable[pc.depth_index], i32vec2(coords.xy), 0).r, 0.001);
+        const f32vec3 albedo = texelFetch(texture2DTable[pc.offscreen_index], i32vec2(coords.xy), 0).rgb;
+        const f32mat4x4 inverse_view_projection = (CameraInfoBuf(pc.camera_info)[pc.fif_index]).inverse_view_projection;
+
+        const f32vec4 point_world_pos_pre_div = inverse_view_projection * f32vec4(ndc_xy, depth, 1.0);
+        const f32vec3 point_world_pos = point_world_pos_pre_div.xyz / point_world_pos_pre_div.w;
+        const f32vec3 camera_world_pos = (CameraInfoBuf(pc.camera_info)[pc.fif_index]).position;
+        const f32vec3 camera_to_point = normalize(point_world_pos - camera_world_pos);
+
+        const f32 world_distance = length(point_world_pos - camera_world_pos);
+
+        const f32 fog_strength = 0.085;
+        const f32 fog_height_falloff = 0.35;
+        const f32 sun_col_base_bias = 0.005;
+        const f32 sun_col_max_bias = 0.1;
+
+        const f32 fog_amount = 
+            (fog_strength / fog_height_falloff) *
+            exp(-camera_world_pos.z * fog_height_falloff) *
+            (1.0 - exp(-world_distance * camera_to_point.z * fog_height_falloff))/camera_to_point.z;
+        
+        const f32 clamped_fog_amount = clamp(fog_amount, 0.0, 1.0);
+
+        const f32 sun_amount = dot(normalize(camera_to_point), pc.sun_direction) * 0.5 + 0.5;
+        const f32vec3 fog_color = mix(
+            SKY_COLOR * 20.0 + (SUN_COLOR * sun_col_base_bias),
+            SKY_COLOR * 20.0 + (SUN_COLOR * sun_col_max_bias),
+            pow(sun_amount, 40.0)
+        );
+
+        const f32vec3 col_after_fog = mix(albedo, fog_color, clamped_fog_amount);
+        const f32 dither_weight = 0.001;
+        const f32vec3 col_dither = dither_mat[coords.x % 4][coords.y % 4] * dither_weight + col_after_fog;
+        imageStore(image2DTable[pc.offscreen_index], coords, f32vec4(col_dither, 1.0));
+    }
+}

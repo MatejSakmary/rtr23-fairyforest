@@ -42,6 +42,7 @@ set (GLSL_FRAG_SOURCE_FILES
 
 set (GLSL_COMP_SOURCE_FILES
     "src/shaders/screen_space/ssao.comp"
+    "src/shaders/screen_space/fog_pass.comp"
     "src/shaders/screen_space/minmax_first_pass.comp"
     "src/shaders/screen_space/minmax_subseq_pass.comp"
     "src/shaders/shadows/write_shadow_matrices.comp"

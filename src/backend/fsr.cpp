@@ -123,7 +123,7 @@ namespace ff
         dispatch_description.reset = info.should_reset;
         dispatch_description.enableSharpening = info.should_sharpen;
         dispatch_description.sharpness = info.sharpening;
-        dispatch_description.frameTimeDelta = info.delta_time * 1000.0f;
+        dispatch_description.frameTimeDelta = info.delta_time;
         dispatch_description.preExposure = 1.0f;
         dispatch_description.renderSize.width = fsr_info.render_resolution.x;
         dispatch_description.renderSize.height = fsr_info.render_resolution.y;

@@ -116,6 +116,14 @@ namespace ff
             .name = "ssao pipeline",
         }});
 
+        pipelines.fog_pass = ComputePipeline({ComputePipelineCreateInfo{
+            .device = context->device,
+            .comp_spirv_path = ".\\src\\shaders\\bin\\fog_pass.comp.spv",
+            .entry_point = "main",
+            .push_constant_size = sizeof(FogPC),
+            .name = "fog pass pipeline",
+        }});
+
         pipelines.first_depth_pass = ComputePipeline({ComputePipelineCreateInfo{
             .device = context->device,
             .comp_spirv_path = ".\\src\\shaders\\bin\\minmax_first_pass.comp.spv",
@@ -480,8 +488,9 @@ namespace ff
             .view = camera_info.view,
             .inverse_view = glm::inverse(camera_info.view),
             .projection = camera_info.proj,
-            .jittered_projection = jittered_projection,
             .inverse_projection = glm::inverse(camera_info.proj),
+            .jittered_projection = jittered_projection,
+            .inverse_jittered_projection = glm::inverse(jittered_projection),
             .view_projection = camera_info.viewproj,
             .inverse_view_projection = glm::inverse(camera_info.viewproj),
             .prev_view_projection = prev_view_projection,
@@ -1018,7 +1027,7 @@ namespace ff
                     .image_id = images.depth,
                     .layout = VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
                     .load_op = VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_LOAD,
-                    .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    .store_op = VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE,
                     .clear_value = {.depthStencil = {.depth = 0.0f, .stencil = 0}},
                 },
                 .render_area = VkRect2D{.offset = {.x = 0, .y = 0}, .extent = {.width = render_resolution.width, .height = render_resolution.height}},
@@ -1080,16 +1089,47 @@ namespace ff
             command_buffer.cmd_end_renderpass();
         }
 
-        // offscreen        COLOR_ATTACHMENT_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL
-        // motion vectors   COLOR_ATTACHMENT_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL
-        // depth            DEPTH_ATTACHMENT_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL
+        // offscreen        COLOR_ATTACHMENT_OPTIMAL -> GENERAL
         {
             command_buffer.cmd_image_memory_transition_barrier({
                 .src_stages = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                 .src_access = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                .dst_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .dst_access = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
+                .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .image_id = images.offscreen,
+            });
+        }
+        // fog pass
+        {
+            command_buffer.cmd_set_compute_pipeline(pipelines.fog_pass);
+            command_buffer.cmd_set_push_constant(FogPC{
+                .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
+                .fif_index = fif_index,
+                .depth_index = images.depth.index,
+                .offscreen_index = images.offscreen.index,
+                .extent = {render_resolution.width, render_resolution.height},
+                .sun_direction = sun_direction,
+            });
+            command_buffer.cmd_dispatch({
+                .x = (render_resolution.width + FOG_PASS_X_TILE_SIZE - 1) / FOG_PASS_X_TILE_SIZE,
+                .y = (render_resolution.height + FOG_PASS_X_TILE_SIZE - 1) / FOG_PASS_X_TILE_SIZE,
+                .z = 1,
+            });
+        }
+    
+        // offscreen        GENERAL -> SHADER_READ_ONLY_OPTIMAL
+        // motion vectors   COLOR_ATTACHMENT_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL
+        // depth            DEPTH_ATTACHMENT_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL
+        {
+            command_buffer.cmd_image_memory_transition_barrier({
+                .src_stages = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .src_access = VK_ACCESS_2_SHADER_WRITE_BIT | VK_ACCESS_2_SHADER_READ_BIT,
                 .dst_stages = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                 .dst_access = VK_ACCESS_2_SHADER_READ_BIT,
-                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .src_layout = VkImageLayout::VK_IMAGE_LAYOUT_GENERAL,
                 .dst_layout = VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                 .aspect_mask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
                 .image_id = images.offscreen,
@@ -1126,7 +1166,7 @@ namespace ff
                 .motion_vectors_id = images.motion_vectors,
                 .target_id = images.fsr_target,
                 .should_reset = false,
-                .delta_time = frame_time,
+                .delta_time = delta_time * 1000.0f,
                 .jitter = jitter,
                 .should_sharpen = false,
                 .sharpening = 0.0f,
@@ -1196,7 +1236,7 @@ namespace ff
         context->device->cleanup_resources();
         prev_view_projection = curr_frame_camera.view_projection;
         frame_time = stopwatch.elapsed_time<f32, std::chrono::seconds>();
-        // fmt::println("CPU frame time {}us FPS {}", elapsed_time, 1.0f / (elapsed_time * 0.000'001f));
+        fmt::println("CPU frame time {}ms FPS {}", delta_time * 1000.0,  1.0/(delta_time));
         frame_index += 1;
         accum += delta_time;
     }
