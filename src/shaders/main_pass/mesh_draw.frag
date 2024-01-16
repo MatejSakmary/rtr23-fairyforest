@@ -15,6 +15,27 @@ layout(location = 1) out f32vec4 out_motion_vector;
 
 layout(push_constant, scalar) uniform push { DrawPc pc; };
 
+f32vec3 point_lights_contribution(f32vec3 normal, f32vec3 world_position, f32vec3 view_direction)
+{
+    f32vec3 total_contribution = f32vec3(0.0);
+    for(i32 light_index = 0; light_index < pc.curr_num_lights; light_index++)
+    {
+        LightInfo light = LightInfo(pc.lights_info)[light_index];
+        const f32vec3 position_to_light = normalize(light.position - world_position);
+        const f32 diffuse = max(dot(normal, position_to_light), 0.0);
+
+        const f32 to_light_dist = length(light.position - world_position);
+        const f32 falloff_factor = 
+            light.constant_falloff + 
+            light.linear_falloff * to_light_dist + 
+            light.quadratic_falloff + (to_light_dist * to_light_dist);
+
+        const f32 attenuation = 1.0 / falloff_factor;
+        total_contribution += light.color * diffuse * attenuation * light.intensity;
+    }
+    return total_contribution;
+}
+
 void main()
 {
     f32vec4 albedo = f32vec4(1.0);
@@ -96,6 +117,10 @@ void main()
     const f32 indirect = clamp(dot(world_normal, normalize(pc.sun_direction * f32vec3(-1.0, -1.0, 0.0))), 0.0, 1.0);
 
     f32vec3 diffuse = sun_norm_dot * SUN_COLOR * sun_intensity * clamp(pow(shadow, 4), 0.0, 1.0);
+
+    const f32vec3 camera_position = (CameraInfoBuf(pc.camera_info)[pc.fif_index]).position;
+    const f32vec3 camera_to_point = normalize(world_position - camera_position);
+    diffuse += point_lights_contribution(world_normal, world_position, camera_to_point) * weighed_ambient_occlusion;
     diffuse += occlusion_ambient_factor * (SKY_COLOR * 100);
     diffuse += weighed_ambient_occlusion * indirect * f32vec3(0.82, 0.910, 0.976) * 0.02;
 

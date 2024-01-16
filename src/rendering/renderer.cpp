@@ -388,6 +388,54 @@ namespace ff
             std::memcpy(staging_ptr, ssao_kernel_noise.data(), sizeof(f32vec4) * SSAO_KERNEL_NOISE_SIZE * SSAO_KERNEL_NOISE_SIZE);
         }
 
+        // LIGHTS
+        BufferId lights_info_staging = {};
+        {
+            std::vector<LightInfo> info = {};
+            info.reserve(MAX_NUM_LIGHTS);
+            curr_num_lights = 1;
+            info.push_back(LightInfo{
+                .position = {5.0f, -5.0f, 0.3f},
+                .color = {0.8f, 0.451f, 0.278f},
+                .intensity = 0.5f,
+                .constant_falloff = 0.05f,
+                .linear_falloff = 0.02f,
+                .quadratic_falloff = 0.5f
+            });
+
+            info.push_back(LightInfo{
+                .position = {3.0f, 3.0f, 0.5f},
+                .color = {0.8f, 0.451f, 0.278f},
+                .intensity = 0.2f,
+                .constant_falloff = 0.05f,
+                .linear_falloff = 0.02f,
+                .quadratic_falloff = 0.01f
+            });
+
+            for(u32 unoccupied_light = curr_num_lights; unoccupied_light < MAX_NUM_LIGHTS; unoccupied_light++)
+            {
+                info.push_back(LightInfo{
+                    .position = {0.0f, 0.0f, 0.0f},
+                    .color = {0.0f, 0.0f, 0.0f},
+                    .intensity = 0.0f,
+                    .constant_falloff = 0.0f,
+                    .linear_falloff = 0.0f,
+                    .quadratic_falloff = 0.0f
+                });
+            }
+            buffers.lights_info = context->device->create_buffer({
+                .size = sizeof(LightInfo) * MAX_NUM_LIGHTS,
+                .name = "Lights info"
+            });
+
+            lights_info_staging = context->device->create_buffer({
+                .size = sizeof(LightInfo) * MAX_NUM_LIGHTS,
+                .flags = VmaAllocationCreateFlagBits::VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
+                .name = "Lights info staging",
+            });
+            void * staging_ptr = context->device->get_buffer_host_pointer(lights_info_staging);
+            std::memcpy(staging_ptr, info.data(), sizeof(LightInfo) * MAX_NUM_LIGHTS);
+        }
         auto resource_update_command_buffer = CommandBuffer(context->device);
         resource_update_command_buffer.begin();
         // Fill kernel buffer
@@ -429,11 +477,19 @@ namespace ff
                 .image_id = images.ssao_kernel_noise,
             });
         }
+        {
+            resource_update_command_buffer.cmd_copy_buffer_to_buffer({
+                .src_buffer = lights_info_staging,
+                .dst_buffer = buffers.lights_info,
+                .size = static_cast<u32>(sizeof(LightInfo) * MAX_NUM_LIGHTS),
+            });
+        }
         resource_update_command_buffer.end();
         auto recorded_command_buffer = resource_update_command_buffer.get_recorded_command_buffer();
         context->device->submit({.command_buffers = {&recorded_command_buffer, 1}});
         context->device->destroy_buffer(ssao_kernel_staging);
         context->device->destroy_buffer(ssao_kernel_noise_staging);
+        context->device->destroy_buffer(lights_info_staging);
         context->device->wait_idle();
         context->device->cleanup_resources();
     }
@@ -1044,6 +1100,7 @@ namespace ff
                     .scene_descriptor = draw_commands.scene_descriptor,
                     .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
                     .cascade_data = context->device->get_buffer_device_address(buffers.cascade_data),
+                    .lights_info = context->device->get_buffer_device_address(buffers.lights_info),
                     .ss_normals_index = images.ss_normals.index,
                     .ssao_index = images.ambient_occlusion.index,
                     .esm_shadowmap_index = images.esm_cascades.index,
@@ -1053,6 +1110,7 @@ namespace ff
                     .shadow_sampler_id = clamp_sampler.index,
                     .sun_direction = sun_direction,
                     .enable_ao = static_cast<u32>(draw_commands.enable_ao),
+                    .curr_num_lights = curr_num_lights,
                 });
                 command_buffer.cmd_draw_indexed({
                     .index_count = draw_command.index_count,
@@ -1068,6 +1126,7 @@ namespace ff
                     .scene_descriptor = draw_commands.scene_descriptor,
                     .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
                     .cascade_data = context->device->get_buffer_device_address(buffers.cascade_data),
+                    .lights_info = context->device->get_buffer_device_address(buffers.lights_info),
                     .ss_normals_index = images.ss_normals.index,
                     .ssao_index = images.ambient_occlusion.index,
                     .esm_shadowmap_index = images.esm_cascades.index,
@@ -1077,6 +1136,7 @@ namespace ff
                     .shadow_sampler_id = clamp_sampler.index,
                     .sun_direction = sun_direction,
                     .enable_ao = static_cast<u32>(draw_commands.enable_ao),
+                    .curr_num_lights = curr_num_lights,
                 });
                 command_buffer.cmd_draw_indexed({
                     .index_count = draw_command.index_count,
@@ -1247,6 +1307,7 @@ namespace ff
         context->device->destroy_buffer(buffers.ssao_kernel);
         context->device->destroy_buffer(buffers.cascade_data);
         context->device->destroy_buffer(buffers.depth_limits);
+        context->device->destroy_buffer(buffers.lights_info);
         context->device->destroy_image(images.ssao_kernel_noise);
         context->device->destroy_image(images.depth);
         context->device->destroy_image(images.ambient_occlusion);

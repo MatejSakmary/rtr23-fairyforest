@@ -64,6 +64,7 @@ Application::Application()
     std::filesystem::path const DEFAULT_ROOT_PATH = ".\\assets";
     // std::filesystem::path const DEFAULT_SCENE_PATH = "forest\\forest.gltf";
     std::filesystem::path const DEFAULT_SCENE_PATH = "forest_leaves_twofaced\\forest_leaves_twofaced.gltf";
+    // std::filesystem::path const DEFAULT_SCENE_PATH = "forest_new\\forest_leaves_twofaced.gltf";
     // std::filesystem::path const DEFAULT_SCENE_PATH = "instanced_cubes\\instanced_cubes.gltf";
     // std::filesystem::path const DEFAULT_SCENE_PATH = "old_sponza\\old_sponza.gltf";
     // std::filesystem::path const DEFAULT_SCENE_PATH = "new_sponza\\new_sponza.gltf";

@@ -57,6 +57,7 @@ namespace ff
 		BufferId camera_info = {};
 		BufferId depth_limits = {};
 		BufferId cascade_data = {};
+		BufferId lights_info = {};
 	};
 
     struct Renderer
@@ -87,6 +88,7 @@ namespace ff
 		SamplerId no_mip_sampler = {};
 
 		//TODO(msakmary) Hacky...
+		u32 curr_num_lights = {};
 		f32vec2 jitter = {};
 		f32mat4x4 prev_view_projection = {};
 

@@ -72,6 +72,7 @@ struct DrawPc
     VkDeviceAddress scene_descriptor;
     VkDeviceAddress camera_info;
     VkDeviceAddress cascade_data;
+    VkDeviceAddress lights_info;
     u32 ss_normals_index;
     u32 ssao_index;
     u32 esm_shadowmap_index;
@@ -81,6 +82,7 @@ struct DrawPc
     u32 shadow_sampler_id;
     f32vec3 sun_direction;
     u32 enable_ao;
+    u32 curr_num_lights;
 };
 
 // SSAO 
@@ -176,4 +178,17 @@ struct FogPC
     u32 offscreen_index;
     u32vec2 extent;
     f32vec3 sun_direction;
+};
+
+// Lights and particles
+#define MAX_NUM_LIGHTS 10
+BUFFER_REF(4)
+LightInfo
+{
+    f32vec3 position;
+    f32vec3 color;
+    f32 intensity;
+    f32 constant_falloff;
+    f32 linear_falloff;
+    f32 quadratic_falloff;
 };
