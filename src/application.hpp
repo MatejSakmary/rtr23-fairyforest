@@ -28,6 +28,8 @@ struct Application
     u32 no_albedo = {};
     u32 no_shadows = {};
     u32 no_normal_maps = {};
+    bool no_fog = {};
+    bool reset_fsr = {};
     std::unique_ptr<Window> window = {};
     std::shared_ptr<Context> context = {};
     std::unique_ptr<ff::Renderer> renderer = {};

@@ -69,6 +69,7 @@ namespace ff
 
         void draw_frame(SceneDrawCommands const & draw_commands, CameraInfo const & camera_info, f32 delta_time);
         void resize();
+		void change_fsr_scaling(f32 new_scaling);
 
       private:
 	  	void create_pipelines();
@@ -80,6 +81,7 @@ namespace ff
 		Images images = {};
 		Buffers buffers = {};
 		Fsr fsr = {};
+		f32 curr_fsr_factor = {};
 
         u32 frame_index = {};
 		f32 frame_time = {};

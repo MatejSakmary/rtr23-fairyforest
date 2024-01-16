@@ -4,7 +4,8 @@
 namespace ff
 {
     Renderer::Renderer(std::shared_ptr<Context> context)
-        : context{context}
+        : context{context},
+          curr_fsr_factor{2.0f}
     {
         fsr = Fsr(CreateFsrInfo{ .device = context->device });
         create_pipelines();
@@ -166,12 +167,18 @@ namespace ff
         }});
     }
 
+	void Renderer::change_fsr_scaling(f32 new_scaling)
+    {
+        curr_fsr_factor = new_scaling;
+        resize();
+    }
+
     void Renderer::create_resolution_dep_resources()
     {
         auto const swapchain_extent = context->swapchain->surface_extent;
         VkExtent2D const render_resolution = {
-            static_cast<u32>(swapchain_extent.width / FSR_UPSCALE_FACTOR),
-            static_cast<u32>(swapchain_extent.height / FSR_UPSCALE_FACTOR),
+            static_cast<u32>(swapchain_extent.width / curr_fsr_factor),
+            static_cast<u32>(swapchain_extent.height / curr_fsr_factor),
         };
 
         fsr.resize({
@@ -204,7 +211,6 @@ namespace ff
             .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
             .name = "ambient occlusion",
         });
-
         images.offscreen = context->device->create_image({
             .format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT,
             .extent = {render_resolution.width, render_resolution.height, 1},
@@ -215,7 +221,6 @@ namespace ff
             .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
             .name = "offscreen",
         });
-
         images.fsr_target = context->device->create_image({
             .format = VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT,
             .extent = {swapchain_extent.width, swapchain_extent.height, 1},
@@ -227,7 +232,6 @@ namespace ff
             .aspect = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
             .name = "fsr target",
         });
-
         images.motion_vectors = context->device->create_image({
             .format = VkFormat::VK_FORMAT_R16G16_SFLOAT,
             .extent = {render_resolution.width, render_resolution.height, 1},
@@ -253,7 +257,7 @@ namespace ff
         repeat_sampler = context->device->create_sampler({
             .address_mode_u = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT,
             .address_mode_v = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT,
-            .mip_lod_bias = std::log2(1.0f / static_cast<f32>(FSR_UPSCALE_FACTOR)) - 1.0f,
+            .mip_lod_bias = std::log2(1.0f / curr_fsr_factor) - 1.0f,
             .enable_anisotropy = true,
             .max_anisotropy = 16.0f,
             .name = "repeat sampler",
@@ -558,8 +562,8 @@ namespace ff
         auto command_buffer = CommandBuffer(context->device);
         auto const & swapchain_extent = context->device->info_image(swapchain_image).extent;
         VkExtent2D const render_resolution = {
-            static_cast<u32>(swapchain_extent.width / FSR_UPSCALE_FACTOR),
-            static_cast<u32>(swapchain_extent.height / FSR_UPSCALE_FACTOR),
+            static_cast<u32>(swapchain_extent.width / curr_fsr_factor),
+            static_cast<u32>(swapchain_extent.height / curr_fsr_factor),
         };
 
         jitter = fsr.get_jitter(frame_index);
@@ -594,18 +598,32 @@ namespace ff
         };
         std::memcpy(staging_memory, &curr_frame_camera, sizeof(CameraInfoBuf));
 
+        DrawPc draw_push = DrawPc{
+            .scene_descriptor = draw_commands.scene_descriptor,
+            .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
+            .cascade_data = context->device->get_buffer_device_address(buffers.cascade_data),
+            .lights_info = context->device->get_buffer_device_address(buffers.lights_info),
+            .ss_normals_index = images.ss_normals.index,
+            .ssao_index = images.ambient_occlusion.index,
+            .esm_shadowmap_index = images.esm_cascades.index,
+            .fif_index = fif_index,
+            .mesh_index = {},
+            .sampler_id = repeat_sampler.index,
+            .shadow_sampler_id = clamp_sampler.index,
+            .sun_direction = sun_direction,
+            .no_ao = draw_commands.no_ao,
+            .force_ao = draw_commands.force_ao,
+            .no_albedo = draw_commands.no_albedo,
+            .no_shadows = draw_commands.no_shadows,
+            .no_normal_maps = draw_commands.no_normal_maps,
+            .curr_num_lights = curr_num_lights,
+        };
         auto record_mesh_draw_commands = [&](auto const & commands)
         {
             for (auto const & draw_command : commands)
             {
-                command_buffer.cmd_set_push_constant(DrawPc{
-                    .scene_descriptor = draw_commands.scene_descriptor,
-                    .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
-                    .ss_normals_index = images.ss_normals.index,
-                    .fif_index = fif_index,
-                    .mesh_index = draw_command.mesh_idx,
-                    .sampler_id = repeat_sampler.index,
-                });
+                draw_push.mesh_index = draw_command.mesh_idx;
+                command_buffer.cmd_set_push_constant(draw_push);
 
                 command_buffer.cmd_draw_indexed({
                     .index_count = draw_command.index_count,
@@ -1136,25 +1154,8 @@ namespace ff
             });
             for (auto const & draw_command : draw_commands.draw_commands)
             {
-                command_buffer.cmd_set_push_constant(DrawPc{
-                    .scene_descriptor = draw_commands.scene_descriptor,
-                    .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
-                    .cascade_data = context->device->get_buffer_device_address(buffers.cascade_data),
-                    .lights_info = context->device->get_buffer_device_address(buffers.lights_info),
-                    .ss_normals_index = images.ss_normals.index,
-                    .ssao_index = images.ambient_occlusion.index,
-                    .esm_shadowmap_index = images.esm_cascades.index,
-                    .fif_index = fif_index,
-                    .mesh_index = draw_command.mesh_idx,
-                    .sampler_id = repeat_sampler.index,
-                    .shadow_sampler_id = clamp_sampler.index,
-                    .sun_direction = sun_direction,
-                    .no_ao = draw_commands.no_ao,
-                    .force_ao = draw_commands.force_ao,
-                    .no_albedo = draw_commands.no_albedo,
-                    .no_shadows = draw_commands.no_shadows,
-                    .curr_num_lights = curr_num_lights,
-                });
+                draw_push.mesh_index = draw_command.mesh_idx;
+                command_buffer.cmd_set_push_constant(draw_push);
                 command_buffer.cmd_draw_indexed({
                     .index_count = draw_command.index_count,
                     .instance_count = draw_command.instance_count,
@@ -1165,25 +1166,8 @@ namespace ff
             }
             for (auto const & draw_command : draw_commands.alpha_discard_commands)
             {
-                command_buffer.cmd_set_push_constant(DrawPc{
-                    .scene_descriptor = draw_commands.scene_descriptor,
-                    .camera_info = context->device->get_buffer_device_address(buffers.camera_info),
-                    .cascade_data = context->device->get_buffer_device_address(buffers.cascade_data),
-                    .lights_info = context->device->get_buffer_device_address(buffers.lights_info),
-                    .ss_normals_index = images.ss_normals.index,
-                    .ssao_index = images.ambient_occlusion.index,
-                    .esm_shadowmap_index = images.esm_cascades.index,
-                    .fif_index = fif_index,
-                    .mesh_index = draw_command.mesh_idx,
-                    .sampler_id = repeat_sampler.index,
-                    .shadow_sampler_id = clamp_sampler.index,
-                    .sun_direction = sun_direction,
-                    .no_ao = draw_commands.no_ao,
-                    .force_ao = draw_commands.force_ao,
-                    .no_albedo = draw_commands.no_albedo,
-                    .no_shadows = draw_commands.no_shadows,
-                    .curr_num_lights = curr_num_lights,
-                });
+                draw_push.mesh_index = draw_command.mesh_idx;
+                command_buffer.cmd_set_push_constant(draw_push);
                 command_buffer.cmd_draw_indexed({
                     .index_count = draw_command.index_count,
                     .instance_count = draw_command.instance_count,
@@ -1218,6 +1202,7 @@ namespace ff
                 .offscreen_index = images.offscreen.index,
                 .extent = {render_resolution.width, render_resolution.height},
                 .sun_direction = sun_direction,
+                .no_fog = draw_commands.no_fog ? 1u : 0u,
             });
             command_buffer.cmd_dispatch({
                 .x = (render_resolution.width + FOG_PASS_X_TILE_SIZE - 1) / FOG_PASS_X_TILE_SIZE,
@@ -1271,7 +1256,7 @@ namespace ff
                 .depth_id = images.depth,
                 .motion_vectors_id = images.motion_vectors,
                 .target_id = images.fsr_target,
-                .should_reset = false,
+                .should_reset = draw_commands.reset_fsr,
                 .delta_time = delta_time * 1000.0f,
                 .jitter = jitter,
                 .should_sharpen = false,

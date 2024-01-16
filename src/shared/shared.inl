@@ -85,6 +85,7 @@ struct DrawPc
     u32 force_ao;
     u32 no_albedo;
     u32 no_shadows;
+    u32 no_normal_maps;
     u32 curr_num_lights;
 };
 
@@ -124,8 +125,6 @@ struct SSAOPC
 
 #define ESM_BLUR_WORKGROUP_SIZE 64
 #define ESM_FACTOR 100.0
-
-#define FSR_UPSCALE_FACTOR 2.0
 
 #define LAMBDA 0.70
 BUFFER_REF(4)
@@ -181,6 +180,7 @@ struct FogPC
     u32 offscreen_index;
     u32vec2 extent;
     f32vec3 sun_direction;
+    u32 no_fog;
 };
 
 // Lights and particles

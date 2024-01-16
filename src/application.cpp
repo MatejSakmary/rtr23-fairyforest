@@ -115,6 +115,10 @@ auto Application::run() -> i32
         commands.no_albedo = no_albedo;
         commands.no_shadows = no_shadows;
         commands.force_ao = force_ao;
+        commands.no_normal_maps = no_normal_maps;
+        commands.reset_fsr = reset_fsr;
+        commands.no_fog = no_fog;
+        reset_fsr = false;
         renderer->draw_frame(commands, camera_controller.cam_info, delta_time);
         // renderer->draw_frame(commands, camera.info, delta_time);
         keep_running &= !static_cast<bool>(glfwWindowShouldClose(window->glfw_handle));
@@ -148,6 +152,35 @@ void Application::update()
     if(window->key_just_pressed(GLFW_KEY_3))
     {
         no_normal_maps = 1 - no_normal_maps;
+    }
+    if(window->key_just_pressed(GLFW_KEY_4))
+    {
+        no_fog = !no_fog;
+    }
+    if(window->key_just_pressed(GLFW_KEY_5))
+    {
+        renderer->change_fsr_scaling(1.0f);
+        reset_fsr = true;
+    }
+    if(window->key_just_pressed(GLFW_KEY_6))
+    {
+        renderer->change_fsr_scaling(1.5f);
+        reset_fsr = true;
+    }
+    if(window->key_just_pressed(GLFW_KEY_7))
+    {
+        renderer->change_fsr_scaling(1.75f);
+        reset_fsr = true;
+    }
+    if(window->key_just_pressed(GLFW_KEY_8))
+    {
+        renderer->change_fsr_scaling(2.0f);
+        reset_fsr = true;
+    }
+    if(window->key_just_pressed(GLFW_KEY_9))
+    {
+        renderer->change_fsr_scaling(3.0f);
+        reset_fsr = true;
     }
     camera_controller.process_input(*window, delta_time);
     camera_controller.update_matrices(*window);

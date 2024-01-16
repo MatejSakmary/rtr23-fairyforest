@@ -11,11 +11,11 @@ layout(location = 4) in flat u32 normals_index;
 
 layout(location = 0) out u32vec4 compressed_normal;
 
-layout(push_constant, scalar) uniform pc { DrawPc data; };
+layout(push_constant, scalar) uniform push { DrawPc pc; };
 
 void main()
 {
-    const f32vec3 normal = texture(sampler2D(texture2DTable[normals_index], samplerTable[data.sampler_id]), in_uv).rgb;
+    const f32vec3 normal = texture(sampler2D(texture2DTable[normals_index], samplerTable[pc.sampler_id]), in_uv).rgb;
     const f32vec3 rescaled_normal = normal * 2.0 - 1.0;
                 
     const f32vec3 norm_in_tangent = normalize(in_tangent.xyz);
@@ -24,7 +24,7 @@ void main()
     const f32vec3 ort_tangent = normalize(norm_in_tangent - dot(norm_in_tangent, norm_in_normal) * norm_in_normal);
     const f32vec3 bitangent = normalize(cross(norm_in_normal, ort_tangent) * -in_tangent.w);
     const f32mat3x3 TBN = f32mat3x3(ort_tangent, bitangent, norm_in_normal);
-    const f32vec3 world_normal = normalize(TBN * rescaled_normal);
+    const f32vec3 world_normal = (pc.no_normal_maps == 1) ? in_normal : normalize(TBN * rescaled_normal);
     compressed_normal = u32vec4(nrm_to_u16(world_normal));
     // compressed_normal = u32vec4(nrm_to_u16(in_normal));
 }

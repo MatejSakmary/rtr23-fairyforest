@@ -38,7 +38,7 @@ void main()
         const f32 sun_col_base_bias = 0.005;
         const f32 sun_col_max_bias = 0.1;
 
-        const f32 fog_amount = 
+        const f32 fog_amount = (pc.no_fog == 1) ?  0.0 : 
             (fog_strength / fog_height_falloff) *
             exp(-camera_world_pos.z * fog_height_falloff) *
             (1.0 - exp(-world_distance * camera_to_point.z * fog_height_falloff))/camera_to_point.z;
