@@ -1,5 +1,6 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
+// #extension GL_EXT_debug_printf : enable
 #include "src/shared/shared.inl"
 
 layout(push_constant, scalar) uniform push {WriteShadowMatricesPC pc;};
@@ -111,14 +112,16 @@ void main()
     f32vec3 shadow_camera_pos = average_vertex + sun_direction * -min_extends.z;
 
     // TEST
-    f32vec2 texels_per_unit = f32vec2(
-        (max_extends.x - min_extends.x) / (SHADOWMAP_RESOLUTION),
-        (max_extends.y - min_extends.y) / (SHADOWMAP_RESOLUTION)
-    );
+    // f32vec2 texels_per_unit = f32vec2(
+    //     (max_extends.x - min_extends.x) / (SHADOWMAP_RESOLUTION),
+    //     (max_extends.y - min_extends.y) / (SHADOWMAP_RESOLUTION)
+    // );
     
-    f32vec2 pix_rounded_camera_pos_xy = shadow_camera_pos.xy / texels_per_unit;
-    shadow_camera_pos.xy = round(pix_rounded_camera_pos_xy) * texels_per_unit;
+    // f32vec2 pix_rounded_camera_pos_xy = shadow_camera_pos.xy / texels_per_unit;
+    // shadow_camera_pos.xy = round(pix_rounded_camera_pos_xy) * texels_per_unit;
     // shadow_camera_pos.z = (sun_direction * -15.0).z;
+    // debugPrintfEXT("Cascade gl_LocalInvocationID.x position is %f %f %f minmax depth is %f %f\n",
+    //     shadow_camera_pos.x, shadow_camera_pos.y, shadow_camera_pos.z, min_max_depth.x, min_max_depth.y);
 
     f32mat4x4 shadow_view = inverse_rotation_translation(light_camera_rotation, shadow_camera_pos);
     f32mat4x4 shadow_proj = orthographic_projection(
@@ -131,5 +134,4 @@ void main()
     (ShadowmapCascadeData(pc.cascade_data)[thread_idx]).cascade_proj_matrix = shadow_proj;
     (ShadowmapCascadeData(pc.cascade_data)[thread_idx]).cascade_far_depth = far_dist;
     (ShadowmapCascadeData(pc.cascade_data)[thread_idx]).far_plane = cascade_extends.z;
-;
 }

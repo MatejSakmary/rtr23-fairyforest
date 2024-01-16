@@ -50,10 +50,10 @@ f32vec2 thread_min_max_depth(f32vec4 read_depth_values)
         max(read_depth_values.z, read_depth_values.w)
     );
 
-    read_depth_values.x = read_depth_values.x == 0.0 ? 42.0 : read_depth_values.x;
-    read_depth_values.y = read_depth_values.y == 0.0 ? 42.0 : read_depth_values.y;
-    read_depth_values.z = read_depth_values.z == 0.0 ? 42.0 : read_depth_values.z;
-    read_depth_values.w = read_depth_values.w == 0.0 ? 42.0 : read_depth_values.w;
+    read_depth_values.x = read_depth_values.x <= 0.0005 ? 42.0 : read_depth_values.x;
+    read_depth_values.y = read_depth_values.y <= 0.0005 ? 42.0 : read_depth_values.y;
+    read_depth_values.z = read_depth_values.z <= 0.0005 ? 42.0 : read_depth_values.z;
+    read_depth_values.w = read_depth_values.w <= 0.0005 ? 42.0 : read_depth_values.w;
 
     thread_min_depth_value = min(
         min(read_depth_values.x, read_depth_values.y),

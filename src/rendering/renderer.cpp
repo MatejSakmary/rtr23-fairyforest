@@ -255,7 +255,7 @@ namespace ff
         repeat_sampler = context->device->create_sampler({
             .address_mode_u = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT,
             .address_mode_v = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_REPEAT,
-            .mip_lod_bias = std::log2(1.0f/static_cast<f32>(FSR_UPSCALE_FACTOR)) - 1.0f,
+            .mip_lod_bias = std::log2(1.0f / static_cast<f32>(FSR_UPSCALE_FACTOR)) - 1.0f,
             .enable_anisotropy = true,
             .max_anisotropy = 16.0f,
             .name = "repeat sampler",
@@ -393,39 +393,76 @@ namespace ff
         {
             std::vector<LightInfo> info = {};
             info.reserve(MAX_NUM_LIGHTS);
-            curr_num_lights = 1;
+            curr_num_lights = 8;
             info.push_back(LightInfo{
-                .position = {5.0f, -5.0f, 0.3f},
+                .position = {4.0f, -4.5f, 0.3f},
+                .color = {0.8f, 0.451f, 0.278f},
+                .intensity = 0.6f,
+                .constant_falloff = 0.05f,
+                .linear_falloff = 0.02f,
+                .quadratic_falloff = 0.5f});
+
+            info.push_back(LightInfo{
+                .position = {3.0f, 3.5f, 0.5f},
+                .color = {0.8f, 0.451f, 0.278f},
+                .intensity = 0.4f,
+                .constant_falloff = 0.05f,
+                .linear_falloff = 0.02f,
+                .quadratic_falloff = 0.01f});
+
+            info.push_back(LightInfo{
+                .position = {2.7f, -1.0f, 0.3f},
+                .color = {0.8f, 0.451f, 0.278f},
+                .intensity = 0.4f,
+                .constant_falloff = 0.05f,
+                .linear_falloff = 0.02f,
+                .quadratic_falloff = 0.01f,
+            });
+
+            info.push_back(LightInfo{
+                .position = {-4.2f, 0.0f, 0.6f},
+                .color = {0.8f, 0.451f, 0.278f},
+                .intensity = 0.4f,
+                .constant_falloff = 0.05f,
+                .linear_falloff = 0.02f,
+                .quadratic_falloff = 0.01f,
+            });
+
+            info.push_back(LightInfo{
+                .position = {-2.5f, -2.0f, 0.4f},
                 .color = {0.8f, 0.451f, 0.278f},
                 .intensity = 0.5f,
                 .constant_falloff = 0.05f,
                 .linear_falloff = 0.02f,
-                .quadratic_falloff = 0.5f
-            });
+                .quadratic_falloff = 0.5f});
 
             info.push_back(LightInfo{
-                .position = {3.0f, 3.0f, 0.5f},
+                .position = {1.0f, -7.0f, 0.6f},
                 .color = {0.8f, 0.451f, 0.278f},
-                .intensity = 0.2f,
+                .intensity = 0.6f,
                 .constant_falloff = 0.05f,
                 .linear_falloff = 0.02f,
-                .quadratic_falloff = 0.01f
-            });
+                .quadratic_falloff = 0.01f});
 
-            for(u32 unoccupied_light = curr_num_lights; unoccupied_light < MAX_NUM_LIGHTS; unoccupied_light++)
-            {
-                info.push_back(LightInfo{
-                    .position = {0.0f, 0.0f, 0.0f},
-                    .color = {0.0f, 0.0f, 0.0f},
-                    .intensity = 0.0f,
-                    .constant_falloff = 0.0f,
-                    .linear_falloff = 0.0f,
-                    .quadratic_falloff = 0.0f
-                });
-            }
+            info.push_back(LightInfo{
+                .position = {-4.5f, -5.0f, 0.3f},
+                .color = {0.8f, 0.451f, 0.278f},
+                .intensity = 0.3f,
+                .constant_falloff = 0.05f,
+                .linear_falloff = 0.02f,
+                .quadratic_falloff = 0.01f});
+
+            info.push_back(LightInfo{
+                .position = {-4.7f, 5.2f, 0.55f},
+                .color = {0.8f, 0.451f, 0.278f},
+                .intensity = 0.5f,
+                .constant_falloff = 0.05f,
+                .linear_falloff = 0.02f,
+                .quadratic_falloff = 0.01f});
+
             buffers.lights_info = context->device->create_buffer({
                 .size = sizeof(LightInfo) * MAX_NUM_LIGHTS,
-                .name = "Lights info"
+                .name = "Lights info",
             });
 
             lights_info_staging = context->device->create_buffer({
@@ -1179,7 +1216,7 @@ namespace ff
                 .z = 1,
             });
         }
-    
+
         // offscreen        GENERAL -> SHADER_READ_ONLY_OPTIMAL
         // motion vectors   COLOR_ATTACHMENT_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL
         // depth            DEPTH_ATTACHMENT_OPTIMAL -> SHADER_READ_ONLY_OPTIMAL
@@ -1296,7 +1333,7 @@ namespace ff
         context->device->cleanup_resources();
         prev_view_projection = curr_frame_camera.view_projection;
         frame_time = stopwatch.elapsed_time<f32, std::chrono::seconds>();
-        fmt::println("CPU frame time {}ms FPS {}", delta_time * 1000.0,  1.0/(delta_time));
+        fmt::println("CPU frame time {}ms FPS {}", delta_time * 1000.0, 1.0 / (delta_time));
         frame_index += 1;
         accum += delta_time;
     }
