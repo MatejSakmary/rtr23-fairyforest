@@ -2,7 +2,6 @@
 
 Application::Application()
     : keep_running(true),
-      enable_ao{1},
       window{std::make_unique<Window>(1920, 1080, "Fairy Forest")},
       context{std::make_shared<Context>(window->get_handle())},
       renderer{std::make_unique<ff::Renderer>(context)},
@@ -118,9 +117,13 @@ auto Application::run() -> i32
             renderer->resize();
         }
         update();
-        camera.update_position(delta_time);
-        commands.enable_ao = enable_ao;
-        renderer->draw_frame(commands, camera_controller.cam_info, delta_time);
+        camera.update_position(*window, delta_time);
+        commands.no_ao = no_ao;
+        commands.no_albedo = no_albedo;
+        commands.no_shadows = no_shadows;
+        commands.force_ao = force_ao;
+        // renderer->draw_frame(commands, camera_controller.cam_info, delta_time);
+        renderer->draw_frame(commands, camera.info, delta_time);
         keep_running &= !static_cast<bool>(glfwWindowShouldClose(window->glfw_handle));
     }
     return 0;
@@ -132,9 +135,26 @@ void Application::update()
     {
         return;
     }
-    if(window->key_just_pressed(GLFW_KEY_O))
+    if(window->key_just_pressed(GLFW_KEY_0))
     {
-        enable_ao = 1 - enable_ao;
+        no_albedo = 1 - no_albedo;
+    }
+    if(window->key_just_pressed(GLFW_KEY_1))
+    {
+        no_shadows = 1 - no_shadows;
+    }
+    if(window->key_just_pressed(GLFW_KEY_2))
+    {
+        no_ao = 1 - no_ao;
+        if(window->key_pressed(GLFW_KEY_LEFT_SHIFT))
+        {
+            no_ao = 0;
+            force_ao = 1 - force_ao;
+        }
+    }
+    if(window->key_just_pressed(GLFW_KEY_3))
+    {
+        no_normal_maps = 1 - no_normal_maps;
     }
     camera_controller.process_input(*window, delta_time);
     camera_controller.update_matrices(*window);

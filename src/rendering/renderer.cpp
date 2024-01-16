@@ -262,8 +262,9 @@ namespace ff
         });
 
         clamp_sampler = context->device->create_sampler({
-            .address_mode_u = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .address_mode_v = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+            .address_mode_u = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            .address_mode_v = VkSamplerAddressMode::VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            .border_color = VkBorderColor::VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
             .name = "linear sampler",
         });
 
@@ -1146,7 +1147,10 @@ namespace ff
                     .sampler_id = repeat_sampler.index,
                     .shadow_sampler_id = clamp_sampler.index,
                     .sun_direction = sun_direction,
-                    .enable_ao = static_cast<u32>(draw_commands.enable_ao),
+                    .no_ao = draw_commands.no_ao,
+                    .force_ao = draw_commands.force_ao,
+                    .no_albedo = draw_commands.no_albedo,
+                    .no_shadows = draw_commands.no_shadows,
                     .curr_num_lights = curr_num_lights,
                 });
                 command_buffer.cmd_draw_indexed({
@@ -1172,7 +1176,10 @@ namespace ff
                     .sampler_id = repeat_sampler.index,
                     .shadow_sampler_id = clamp_sampler.index,
                     .sun_direction = sun_direction,
-                    .enable_ao = static_cast<u32>(draw_commands.enable_ao),
+                    .no_ao = draw_commands.no_ao,
+                    .force_ao = draw_commands.force_ao,
+                    .no_albedo = draw_commands.no_albedo,
+                    .no_shadows = draw_commands.no_shadows,
                     .curr_num_lights = curr_num_lights,
                 });
                 command_buffer.cmd_draw_indexed({

@@ -135,6 +135,10 @@ void CameraController::update_matrices(Window & window)
 
 CinematicCamera::CinematicCamera(std::vector<AnimationKeyframe> const & keyframes, Window & window) : path_keyframes{keyframes}
 {
+}
+
+void CinematicCamera::update_projection(Window & window, const glm::fquat view_quat)
+{
     auto inf_depth_reverse_z_perspective = [](auto fov_rads, auto aspect, auto z_near)
     {
         assert(abs(aspect - std::numeric_limits<f32>::epsilon()) > 0.0f);
@@ -149,14 +153,52 @@ CinematicCamera::CinematicCamera(std::vector<AnimationKeyframe> const & keyframe
         ret[3][2] = z_near;
         return ret;
     };
-    // TODO(msakmary) Change aspect on window resize (currently stays set to the inital value)
     glm::mat4 prespective = inf_depth_reverse_z_perspective(glm::radians(70.0f), f32(window.get_width()) / f32(window.get_height()), near_plane);
     prespective[1][1] *= -1.0f;
     info.proj = prespective;
     info.up = {0.0f, 0.0f, 1.0f};
+    info.view = glm::toMat4(view_quat) * glm::translate(glm::identity<glm::mat4x4>(), glm::vec3(-info.pos[0], -info.pos[1], -info.pos[2]));
+    info.viewproj = info.proj * info.view;
+    glm::vec3 right;
+
+    f32vec3 forward = (glm::inverse(info.view) * f32vec4(0.0, 0.0, -1.0, 0.0));
+    info.view = glm::lookAt(info.pos, info.pos + forward, info.up);
+
+    if (forward.x != 0 && forward.y != 0)
+    {
+        right = glm::vec3(forward.y, -forward.x, 0.0f);
+    }
+    else if (forward.x != 0 && forward.z != 0)
+    {
+        right = glm::vec3(-forward.z, 0.0f, forward.x);
+    }
+    else
+    {
+        right = glm::vec3(0.0f, -forward.z, forward.y);
+    }
+
+    const f32vec3 up = {0.f, 0.f, 1.0f};
+    glm::vec3 up_ = glm::normalize(glm::cross(right, forward));
+    glm::vec3 right_ = glm::normalize(glm::cross(forward, up));
+
+    f32 fov_tan = glm::tan(glm::radians(70.0f) / 2.0f);
+
+    auto right_aspect_fov_correct = right_ * (f32(window.get_width()) / f32(window.get_height())) * fov_tan;
+    auto up_fov_correct = glm::normalize(up_) * fov_tan;
+
+    info.fsr_cam_info = {
+        .near_plane = near_plane,
+        .far_plane = std::numeric_limits<f32>::max(),
+        .vertical_fov = glm::radians(70.0f),
+    };
+    info.frust_front = forward;
+    info.frust_top_offset = -up_fov_correct;
+    info.frust_right_offset = right_aspect_fov_correct;
+    info.viewproj = info.proj * info.view;
+    info.up = up;
 }
 
-void CinematicCamera::update_position(f32 dt)
+void CinematicCamera::update_position(Window & window, f32 dt)
 {
     // TODO(msakmary) Whenever the update position dt is longer than a whole keyframe transition time
     // this code will not properly account for this
@@ -190,6 +232,5 @@ void CinematicCamera::update_position(f32 dt)
         w3 * current_keyframe.end_position;
 
     auto const view_quat = glm::slerp(current_keyframe.start_rotation, current_keyframe.end_rotation, t);
-    info.view = glm::toMat4(view_quat) * glm::translate(glm::identity<glm::mat4x4>(), glm::vec3(-info.pos[0], -info.pos[1], -info.pos[2]));
-    info.viewproj = info.proj * info.view;
+    update_projection(window, view_quat);
 }

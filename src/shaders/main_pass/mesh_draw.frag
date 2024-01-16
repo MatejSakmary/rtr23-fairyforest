@@ -108,7 +108,7 @@ void main()
     const u32 world_normal_compressed = texelFetch(utexture2DTable[pc.ss_normals_index], i32vec2(gl_FragCoord.xy), 0).r;
     const f32vec3 world_normal = u16_to_nrm(world_normal_compressed);
     const f32 sun_norm_dot = clamp(dot(world_normal, pc.sun_direction), 0.0, 1.0);
-    const f32 ambient_occlusion = (pc.enable_ao == 1) ?  texelFetch(texture2DTable[pc.ssao_index], i32vec2(gl_FragCoord.xy), 0).r : 1.0;
+    const f32 ambient_occlusion = (pc.no_ao == 1) ? 1.0 : texelFetch(texture2DTable[pc.ssao_index], i32vec2(gl_FragCoord.xy), 0).r;
     const f32 weighed_ambient_occlusion = pow(ambient_occlusion, 2.0);
     const f32 sun_intensity = 0.5;
 
@@ -116,7 +116,9 @@ void main()
     const f32 occlusion_ambient_factor = weighed_ambient_occlusion * ambient_factor;
     const f32 indirect = clamp(dot(world_normal, normalize(pc.sun_direction * f32vec3(-1.0, -1.0, 0.0))), 0.0, 1.0);
 
-    f32vec3 diffuse = sun_norm_dot * SUN_COLOR * sun_intensity * clamp(pow(shadow, 4), 0.0, 1.0);
+    shadow = (pc.no_shadows == 1) ? 1.0 : shadow; 
+    const f32 force_ao_factor = (pc.force_ao == 1) ? weighed_ambient_occlusion : 1.0;
+    f32vec3 diffuse = sun_norm_dot * SUN_COLOR * sun_intensity * clamp(pow(shadow, 4), 0.0, 1.0) * force_ao_factor;
 
     const f32vec3 camera_position = (CameraInfoBuf(pc.camera_info)[pc.fif_index]).position;
     const f32vec3 camera_to_point = normalize(world_position - camera_position);
@@ -125,6 +127,5 @@ void main()
     diffuse += weighed_ambient_occlusion * indirect * f32vec3(0.82, 0.910, 0.976) * 0.02;
 
     out_color = f32vec4(diffuse * (albedo.rgb), 1.0);
-    // out_color.xyz = f32vec3(shadow) * sun_norm_dot;
-    // out_color.xyz = diffuse;
+    out_color.xyz = (pc.no_albedo == 1) ? diffuse : out_color.xyz;
 }

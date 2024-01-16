@@ -120,7 +120,10 @@ struct DrawCommand
 };
 struct SceneDrawCommands
 {
-    u32 enable_ao = {};
+    u32 no_albedo = {};
+    u32 no_shadows = {};
+    u32 no_ao = {};
+    u32 force_ao = {};
     VkDeviceAddress scene_descriptor = {};
     ff::BufferId index_buffer_id = {};
     std::vector<DrawCommand> draw_commands = {};

@@ -81,7 +81,10 @@ struct DrawPc
     u32 sampler_id;
     u32 shadow_sampler_id;
     f32vec3 sun_direction;
-    u32 enable_ao;
+    u32 no_ao;
+    u32 force_ao;
+    u32 no_albedo;
+    u32 no_shadows;
     u32 curr_num_lights;
 };
 

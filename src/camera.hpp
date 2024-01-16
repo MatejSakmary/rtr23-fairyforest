@@ -40,10 +40,12 @@ struct CinematicCamera
 {
     CinematicCamera() = default;
     CinematicCamera(std::vector<AnimationKeyframe> const & keyframes, Window & window);
-    void update_position(f32 dt);
+    void update_position(Window & window, f32 dt);
+    void update_projection(Window & window, const glm::fquat view_quat);
     CameraInfo info;
 
     f32 near_plane = 0.1f;
+    f32 fov = 70.0f;
 
     private:
         f32 current_keyframe_time = 0.0f;
