@@ -6,6 +6,7 @@ namespace ff
     Renderer::Renderer(std::shared_ptr<Context> context)
         : context{context}
     {
+        fsr = Fsr(CreateFsrInfo{ .device = context->device });
         create_pipelines();
         create_resolution_indep_resources();
         create_resolution_dep_resources();
@@ -173,14 +174,11 @@ namespace ff
             static_cast<u32>(swapchain_extent.height / FSR_UPSCALE_FACTOR),
         };
 
-        fsr = Fsr(CreateFsrInfo{
-            .fsr_info = {
-                .render_resolution = {render_resolution.width, render_resolution.height},
-                .display_resolution = {swapchain_extent.width, swapchain_extent.height},
-            },
-            .device = context->device,
+        fsr.resize({
+            .render_resolution = {render_resolution.width, render_resolution.height},
+            .display_resolution = {swapchain_extent.width, swapchain_extent.height},
         });
-
+        
         images.depth = context->device->create_image({
             .format = VkFormat::VK_FORMAT_D32_SFLOAT,
             .extent = {render_resolution.width, render_resolution.height, 1},
@@ -538,6 +536,10 @@ namespace ff
         context->device->destroy_image(images.depth);
         context->device->destroy_image(images.ss_normals);
         context->device->destroy_image(images.ambient_occlusion);
+        context->device->destroy_image(images.offscreen);
+        context->device->destroy_image(images.fsr_target);
+        context->device->destroy_image(images.motion_vectors);
+        context->device->destroy_buffer(buffers.depth_limits);
         auto const swapchain_extent = context->swapchain->surface_extent;
         create_resolution_dep_resources();
     }

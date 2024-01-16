@@ -90,13 +90,6 @@ Application::Application()
         RenderEntity & r_ent = *scene->_render_entities.slot(r_id);
         APP_LOG(fmt::format("[INFO]Application::Application()] Loading Scene Assets \"{}\" Success",
                             (DEFAULT_ROOT_PATH / DEFAULT_SCENE_PATH).string()));
-        // r_ent.transform = glm::mat4x3(
-        //                       glm::vec3(1.0f, 0.0f, 0.0f),
-        //                       glm::vec3(0.0f, 0.0f, 1.0f),
-        //                       glm::vec3(0.0f, 1.0f, 0.0f),
-        //                       glm::vec3(0.0f, 0.0f, 0.0f)) *
-        //                   1.0f;
-        // ) * 100'000'000.0f;
     }
     asset_processor->record_gpu_load_processing_commands(*scene);
     commands = scene->record_scene_draw_commands();
@@ -122,8 +115,8 @@ auto Application::run() -> i32
         commands.no_albedo = no_albedo;
         commands.no_shadows = no_shadows;
         commands.force_ao = force_ao;
-        // renderer->draw_frame(commands, camera_controller.cam_info, delta_time);
-        renderer->draw_frame(commands, camera.info, delta_time);
+        renderer->draw_frame(commands, camera_controller.cam_info, delta_time);
+        // renderer->draw_frame(commands, camera.info, delta_time);
         keep_running &= !static_cast<bool>(glfwWindowShouldClose(window->glfw_handle));
     }
     return 0;

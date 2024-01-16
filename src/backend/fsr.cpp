@@ -3,41 +3,8 @@
 
 namespace ff
 {
-    Fsr::Fsr(CreateFsrInfo const & info) : device(info.device), fsr_info(info.fsr_info)
+    Fsr::Fsr(CreateFsrInfo const & info) : device(info.device)
     {
-        context_description.maxRenderSize.width = fsr_info.render_resolution.x;
-        context_description.maxRenderSize.height = fsr_info.render_resolution.y;
-        context_description.displaySize.width = fsr_info.display_resolution.x;
-        context_description.displaySize.height = fsr_info.display_resolution.y;
-
-        u32 const scratch_buffer_size = ffxFsr2GetScratchMemorySizeVK(info.device->vulkan_physical_device);
-        scratch_buffer.resize(scratch_buffer_size);
-
-        {
-            FfxErrorCode const err = ffxFsr2GetInterfaceVK(
-                &context_description.callbacks,
-                scratch_buffer.data(),
-                scratch_buffer_size,
-                info.device->vulkan_physical_device,
-                vkGetDeviceProcAddr);
-            if (err != FFX_OK)
-            {
-                BACKEND_LOG("[ERROR][Fsr::Fsr()] FSR2 Failed to create Vulkan interface");
-                throw std::runtime_error("[ERROR][Fsr::Fsr()] FSR2 Failed to create Vulkan interface");
-            }
-        }
-
-        context_description.device = ffxGetDeviceVK(info.device->vulkan_device);
-        context_description.flags = FFX_FSR2_ENABLE_DEPTH_INFINITE | FFX_FSR2_ENABLE_DEPTH_INVERTED | FFX_FSR2_ENABLE_HIGH_DYNAMIC_RANGE;
-
-        {
-            FfxErrorCode const err = ffxFsr2ContextCreate(&context, &context_description);
-            if (err != FFX_OK)
-            {
-                BACKEND_LOG("[ERROR][Fsr::Fsr()] FSR Failed to create context");
-                throw std::runtime_error("[ERROR][Fsr::Fsr()] FSR Failed to create context");
-            }
-        }
     }
 
     auto Fsr::get_jitter(u64 const index) const -> f32vec2
@@ -48,6 +15,45 @@ namespace ff
             static_cast<i32>(fsr_info.display_resolution.x));
         ffxFsr2GetJitterOffset(&result.x, &result.y, static_cast<i32>(index), jitter_phase_count);
         return result;
+    }
+
+    void Fsr::resize(FsrInfo const & info)
+    {
+        destroy_resizeable_resources();
+        fsr_info = info;
+        context_description.maxRenderSize.width = fsr_info.render_resolution.x;
+        context_description.maxRenderSize.height = fsr_info.render_resolution.y;
+        context_description.displaySize.width = fsr_info.display_resolution.x;
+        context_description.displaySize.height = fsr_info.display_resolution.y;
+
+        u32 const scratch_buffer_size = ffxFsr2GetScratchMemorySizeVK(device->vulkan_physical_device);
+        scratch_buffer.resize(scratch_buffer_size);
+
+        {
+            FfxErrorCode const err = ffxFsr2GetInterfaceVK(
+                &context_description.callbacks,
+                scratch_buffer.data(),
+                scratch_buffer_size,
+                device->vulkan_physical_device,
+                vkGetDeviceProcAddr);
+            if (err != FFX_OK)
+            {
+                BACKEND_LOG("[ERROR][Fsr::Fsr()] FSR2 Failed to create Vulkan interface");
+                throw std::runtime_error("[ERROR][Fsr::Fsr()] FSR2 Failed to create Vulkan interface");
+            }
+        }
+
+        context_description.device = ffxGetDeviceVK(device->vulkan_device);
+        context_description.flags = FFX_FSR2_ENABLE_DEPTH_INFINITE | FFX_FSR2_ENABLE_DEPTH_INVERTED | FFX_FSR2_ENABLE_HIGH_DYNAMIC_RANGE;
+
+        {
+            FfxErrorCode const err = ffxFsr2ContextCreate(&context, &context_description);
+            if (err != FFX_OK)
+            {
+                BACKEND_LOG("[ERROR][Fsr::Fsr()] FSR Failed to create context");
+                throw std::runtime_error("[ERROR][Fsr::Fsr()] FSR Failed to create context");
+            }
+        }
     }
 
     void Fsr::upscale(UpscaleInfo const & info)
@@ -139,13 +145,18 @@ namespace ff
         }
     }
 
-    Fsr::~Fsr()
+    void Fsr::destroy_resizeable_resources()
     {
         // We are only default constructed
         if (!scratch_buffer.empty())
         {
             FfxErrorCode const err = ffxFsr2ContextDestroy(&context);
             DBG_ASSERT_TRUE_M(err == FFX_OK, "[ERROR][Fsr::Fsr()] FSR Failed to create context");
+            scratch_buffer.clear();
         }
+    }
+    Fsr::~Fsr()
+    {
+        destroy_resizeable_resources();
     }
 } // namespace ff

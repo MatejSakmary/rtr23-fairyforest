@@ -17,7 +17,6 @@ namespace ff
 
     struct CreateFsrInfo
     {
-        FsrInfo fsr_info = {};
         std::shared_ptr<Device> device = {};
     };
 
@@ -57,6 +56,7 @@ namespace ff
         Fsr(CreateFsrInfo const & info);
         auto get_jitter(u64 const index) const -> f32vec2;
         void upscale(UpscaleInfo const & info);
+        void resize(FsrInfo const & info);
         ~Fsr();
 
       private:
@@ -67,5 +67,7 @@ namespace ff
         FsrInfo fsr_info;
 
         std::vector<std::byte> scratch_buffer = {};
+
+        void destroy_resizeable_resources();
     };
 } // namespace ff
