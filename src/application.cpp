@@ -50,7 +50,6 @@ Application::Application()
             .second_control_point = {-5.234389, 9.420338, 0.50579655},
             .end_position = {-5.234389, 9.420338, 0.50579655},
             .transition_time = 4.0f},
-
         AnimationKeyframe{
             .start_rotation = {-0.30329093, 0.31324527, 0.64654374, 0.6259979},
             .end_rotation = {0.06453691, -0.06113628, 0.6849984, 0.7231006},
@@ -99,7 +98,6 @@ Application::Application()
             .second_control_point = {-4.4847164, 4.914666, 0.6918752},
             .end_position = {-4.4847164, 4.914666, 0.6918752},
             .transition_time = 4.0f},
-
         AnimationKeyframe{
             .start_rotation = {0.27070943, -0.2653297, 0.6477386, 0.66087174},
             .end_rotation = {0.22521454, -0.21038365, 0.6494082, 0.69518787},
@@ -107,7 +105,7 @@ Application::Application()
             .first_control_point = {-4.4847164, 4.914666, 0.6918752},
             .second_control_point = {-2.416358, 3.1896625, 0.8320923},
             .end_position = {-2.416358, 3.1896625, 0.8320923},
-            .transition_time = 5f},
+            .transition_time = 5.0f},
         AnimationKeyframe{
             .start_rotation = {0.22521454, -0.21038365, 0.6494082, 0.69518787},
             .end_rotation = {0.23222286, -0.22523615, 0.65878624, 0.6792215},
@@ -148,7 +146,6 @@ Application::Application()
             .second_control_point = {0.31615227, -7.537089, 0.48775858},
             .end_position = {0.31615227, -7.537089, 0.48775858},
             .transition_time = 2.0f},
-
         AnimationKeyframe{
             .start_rotation = {-0.69398654, 0.7198989, -0.008159298, -0.007865609},
             .end_rotation = {0.70843226, -0.50485283, -0.28622785, -0.40164778},
@@ -250,7 +247,7 @@ auto Application::run() -> i32
         update();
         if (!use_manual_camera)
         {
-            camera.update_position(*window, delta_time * 5.0f);
+            camera.update_position(*window, delta_time);
         }
         commands.no_ao = no_ao;
         commands.no_albedo = no_albedo;
