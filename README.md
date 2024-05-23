@@ -1,3 +1,10 @@
+# Screenshots
+Final look                 |   Lighting only
+:-------------------------:|:-------------------------:
+![](https://github.com/MatejSakmary/rtr23-fairyforest/blob/main/media/image_4.png)  |  ![](https://github.com/MatejSakmary/rtr23-fairyforest/blob/main/media/image_3.png)
+![](https://github.com/MatejSakmary/rtr23-fairyforest/blob/main/media/Screenshot%202024-05-23%20182822.png)  |  ![](https://github.com/MatejSakmary/rtr23-fairyforest/blob/main/media/Screenshot%202024-05-23%20182851.png)
+
+
 # Description of the implementation
 ## The renderer final render consists of the following passes:
 ### 1) Prepass - Raster
