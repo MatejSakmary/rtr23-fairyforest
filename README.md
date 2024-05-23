@@ -32,7 +32,7 @@ A two pass filter is used to compute the depth min and max values. In each pass 
 #### Description:
 Each thread samples the min/max buffer produced by the previous pass. It uses these values to calculate the split between the two cascades. We use interpolation between linear and logarithmic distribution. After the split is calculated, the split portion of the frustum is projected into the light viewspace and its min/max bounds are calculated. From these bounds a per cascade view and projection matrices are derived and stored in a GPU buffer.
      
-### 5) Shadowmap passes(2) - Raster
+### 5) Shadowmap passes (2) - Raster
    - **input** - Per shadow cascade data
    - **output** - Shadow map cascades (Depth) 32bits - 2048 * 2048 * 2(cascades)
 #### Description:
